@@ -91,11 +91,13 @@ export class CoursesService {
 
     const contenidosDidacticos = ['label', 'resource', 'book', 'lesson', 'glossary', 'page'];
     const tareas = ['assign'];
-    const tests = ['quiz']; // El test lo podés dejar acá o después sacarlo a su propio módulo si querés
+    const tests = ['quiz'];
+    const foros = ['forum']; // ✨ NUEVO: Agregamos el módulo de foros
 
     return data.map((section: any) => {
       const contenidos = section.modules
-        .filter((mod: any) => [...contenidosDidacticos, ...tareas, ...tests].includes(mod.modname))
+        // ✨ NUEVO: Incluimos el array de foros en el filtro
+        .filter((mod: any) => [...contenidosDidacticos, ...tareas, ...tests, ...foros].includes(mod.modname))
         .map((mod: any) => {
           
           // 🧠 DELEGACIÓN MODULAR: Cada servicio se encarga de lo suyo
@@ -105,6 +107,20 @@ export class CoursesService {
           
           if (contenidosDidacticos.includes(mod.modname)) {
             return this.lessonsService.formatLesson(mod);
+          }
+
+          // ✨ NUEVO: Mapeo específico para los foros
+          if (foros.includes(mod.modname)) {
+            return {
+              id: mod.id,
+              name: mod.name,
+              type: 'forum',         // El front lo lee para saber que componente cargar
+              category: 'foro',      // Categoría genérica para el chip visual
+              instanceId: mod.instance, // CLAVE: El id real del foro para la API
+              description: mod.description || '',
+              url: mod.url || '',
+              fileUrl: null,
+            };
           }
 
           // Fallback para los tests por ahora

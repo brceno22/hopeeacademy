@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import api from '../api/axios';
-import type { CourseFolderNode, MoodleCourse } from '../types/courses-catalog';
+import api from '@/core/api/axios';
+import type { CourseFolderNode, MoodleCourse } from '@/core/types/courses-catalog';
 
 export const AdminCourseCatalog: React.FC = () => {
   const navigate = useNavigate();

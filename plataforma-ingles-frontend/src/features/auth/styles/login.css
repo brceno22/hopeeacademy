@@ -1,0 +1,194 @@
+/* =========================================
+   CONTENEDOR PRINCIPAL (SPLIT SCREEN)
+========================================= */
+.login-wrapper {
+  display: flex;
+  min-height: 100vh;
+  width: 100vw;
+  background-color: var(--bg-surface);
+  font-family: var(--font-body);
+}
+
+/* =========================================
+   LADO IZQUIERDO: BRANDING E IMAGEN
+========================================= */
+.login-brand-side {
+  flex: 1.2;
+  background: linear-gradient(135deg, var(--primary-color) 0%, #004e82 100%);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  color: white;
+  overflow: hidden;
+}
+
+/* Acá es donde la imagen de fondo se ajusta mágicamente */
+.login-brand-bg-image {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.4; /* Opacidad para que el azul se mezcle con la foto */
+  z-index: 1;
+}
+
+.login-brand-content {
+  position: relative;
+  z-index: 2;
+  text-align: center;
+  padding: 40px;
+  max-width: 500px;
+}
+
+.login-brand-content h1 {
+  font-family: var(--font-titles);
+  color: white;
+  font-size: 3rem;
+  margin-bottom: 20px;
+  line-height: 1.1;
+  text-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+
+.login-brand-content p {
+  font-size: 1.2rem;
+  opacity: 0.9;
+}
+
+/* =========================================
+   LADO DERECHO: FORMULARIO
+========================================= */
+.login-form-side {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: top;
+  align-items: center;
+  background-color: var(--bg-color);
+  padding: 24px 40px;
+  box-shadow: -10px 0 30px rgba(0,0,0,0.03);
+  z-index: 5;
+}
+
+.login-form-container {
+  width: 100%;
+  max-width: 400px;
+  animation: fadeIn 0.5s ease-out;
+  display: flex;
+  flex-direction: column;
+}
+
+.login-logo {
+  max-width: 420px; 
+  height: auto;
+  margin: 0 auto 0px auto;
+  display: block;
+}
+
+.login-form-container h2 {
+  font-family: var(--font-titles);
+  color: var(--text-main);
+  font-size: 2rem;
+  margin-top: -40px;    
+  margin-bottom: 4px;
+}
+
+.login-form-container > p {
+  color: var(--text-muted);
+  margin-top: 0;
+  margin-bottom: 24px;
+  font-size: 1.05rem;
+}
+
+/* Inputs y Labels */
+.login-input-group {
+  margin-bottom: 20px;
+}
+
+.login-input-group label {
+  display: block;
+  font-weight: 600;
+  color: var(--text-main);
+  margin-bottom: 8px;
+  font-size: 0.95rem;
+}
+
+.login-input {
+  width: 100%;
+  padding: 14px 16px;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  font-family: var(--font-body);
+  font-size: 1rem;
+  background-color: var(--bg-surface);
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+}
+
+.login-input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  background-color: var(--bg-color);
+  box-shadow: 0 0 0 4px rgba(0, 113, 188, 0.1);
+}
+
+/* Botón de Submit */
+.btn-login {
+  width: 100%;
+  padding: 16px;
+  background-color: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-family: var(--font-body);
+  font-weight: bold;
+  font-size: 1.1rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-top: 10px;
+}
+
+.btn-login:hover:not(:disabled) {
+  background-color: #005c99;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(0, 113, 188, 0.25);
+}
+
+.btn-login:disabled {
+  background-color: var(--border-color);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+/* Alertas */
+.login-alert {
+  padding: 16px;
+  border-radius: 12px;
+  margin-bottom: 24px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.login-alert.success {
+  background-color: rgba(16, 185, 129, 0.1);
+  color: #059669;
+  border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.login-alert.error {
+  background-color: #fef2f2;
+  color: #ef4444;
+  border: 1px solid #fecaca;
+}
+
+/* Responsive: Ocultamos la imagen en celulares */
+@media (max-width: 900px) {
+  .login-brand-side {
+    display: none;
+  }
+}

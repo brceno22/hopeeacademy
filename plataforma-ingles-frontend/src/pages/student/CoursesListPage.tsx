@@ -1,8 +1,10 @@
+//CoursesListPage.tsx
 import React, { useEffect, useState } from 'react';
-import { useStudentLayout } from '../../context/StudentLayoutContext';
-import api from '../../api/axios';
-import { CourseCard } from '../../components/CourseCard';
-import type { MoodleCourse } from '../../types/courses-catalog';
+import { useStudentLayout } from '@/layouts/StudentLayoutContext';
+import api from '@/core/api/axios';
+import { CourseCard } from '@/features/courses/components/CourseCard';
+import type { MoodleCourse } from '@/core/types/courses-catalog';
+import "@/features/courses/styles/program-courses.css";
 
 export const CoursesListPage: React.FC = () => {
   const { setHeaderTitle, clearHeaderTabs } = useStudentLayout();
@@ -21,19 +23,31 @@ export const CoursesListPage: React.FC = () => {
     });
   }, []);
 
-  if (loading) return <p style={{ color: '#64748b' }}>Cargando cursos...</p>;
+  if (loading) return <p className="page-description">Cargando cursos...</p>;
 
   return (
-    <>
-      <p style={{ color: '#64748b', marginBottom: '24px' }}>
+    <div className="fade-in-page">
+      <p className="page-description">
         Todos tus cursos activos en Moodle. Hacé clic para ver lecciones, tareas y material.
       </p>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '24px' }}>
+      
+      <div className="courses-grid">
         {courses.map((course) => (
-          <CourseCard key={course.id} id={course.id} name={course.name} code={course.code} description={course.description} />
+          <CourseCard 
+            key={course.id} 
+            id={course.id} 
+            name={course.name} 
+            code={course.code} 
+            description={course.description} 
+          />
         ))}
       </div>
-      {courses.length === 0 && <p>No tenés cursos inscriptos.</p>}
-    </>
+      
+      {courses.length === 0 && (
+        <div className="home-card">
+          <p className="page-description" style={{ margin: 0 }}>No tenés cursos inscriptos actualmente.</p>
+        </div>
+      )}
+    </div>
   );
 };

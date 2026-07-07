@@ -11,6 +11,9 @@ import { LessonsModule } from './lessons/lessons.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ExamsModule } from './exams/exams.module';
 import { FilesModule } from './files/files.module';
+import { ForumsModule } from './forums/forums.module';
+import { ProgressModule } from './progress/progress.module';
+import { MicrolearningModule } from './microlearning/microlearning.module';
 
 @Module({
   imports: [
@@ -39,8 +42,10 @@ import { FilesModule } from './files/files.module';
     AuthModule,
     TasksModule,
     LessonsModule,
-    ExamsModule,
     FilesModule,
+    ForumsModule,
+    ProgressModule,
+    MicrolearningModule,
   ],
   controllers: [AppController],
   providers: [AppService],

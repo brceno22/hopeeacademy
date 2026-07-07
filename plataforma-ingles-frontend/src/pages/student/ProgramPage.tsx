@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import api from '../../api/axios';
-import { useStudentLayout } from '../../context/StudentLayoutContext';
-import type { CourseFolderNode, MoodleCourse } from '../../types/courses-catalog';
-import { normalizeTree, findProgramRoot } from '../../utils/courseTree';
+import api from '../../core/api/axios';
+import { useStudentLayout } from '../../layouts/StudentLayoutContext';
+import type { CourseFolderNode, MoodleCourse } from '../../core/types/courses-catalog';
+import { normalizeTree, findProgramRoot } from '@/features/courses/utils/courseTree';
+import '@/features/courses/styles/program-courses.css';
 
 export const ProgramPage: React.FC = () => {
   const navigate = useNavigate();
@@ -33,29 +34,30 @@ export const ProgramPage: React.FC = () => {
     setHeaderTitle('Mi programa');
     if (levels.length > 0) {
       setHeaderTabs(
-        levels.map((l) => ({ id: String(l.id), label: l.name })),
+        levels.map((l:CourseFolderNode) => ({ id: String(l.id), label: l.name })),
         String(levels[0].id),
       );
     }
   }, [levels, setHeaderTitle, setHeaderTabs]);
 
-  const activeLevel = levels.find((l) => String(l.id) === activeTabId) ?? levels[0];
+  const activeLevel = levels.find((l:CourseFolderNode) => String(l.id) === activeTabId) ?? levels[0];
 
-  if (loading) return <p style={{ color: '#64748b' }}>Cargando tu programa...</p>;
-  if (error) return <p style={{ color: '#c62828' }}>{error}</p>;
+  if (loading) return <p className="page-description">Cargando tu programa...</p>;
+  if (error) return <p style={{ color: '#ef4444' }}>{error}</p>;
 
   if (!programRoot || levels.length === 0) {
     return (
-      <div className="home-card">
+      <div className="home-card fade-in-page">
         <h3>Sin niveles configurados</h3>
-        <p style={{ color: '#64748b' }}>
+        <p className="page-description">
           Tu academia aún no organizó los niveles (B1, B2…). Mientras tanto, podés ver todos tus cursos en
           la sección <strong>Mis cursos</strong>.
         </p>
         <button
           type="button"
           onClick={() => navigate('/app/cursos')}
-          style={{ marginTop: '16px', padding: '12px 20px', background: '#1a237e', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer' }}
+          className="btn-card primary"
+          style={{ maxWidth: '200px' }}
         >
           Ir a mis cursos
         </button>
@@ -67,16 +69,16 @@ export const ProgramPage: React.FC = () => {
   const coursesInLevel = activeLevel?.courses ?? [];
 
   return (
-    <div>
-      <p style={{ color: '#64748b', marginBottom: '8px' }}>
+    <div className="fade-in-page">
+      <p className="page-description">
         Nivel <strong>{activeLevel?.name}</strong> — elegí una clase o un curso para continuar.
       </p>
 
       {classes.length > 0 && (
         <>
-          <h3 style={{ color: '#1a237e', marginTop: '24px' }}>Clases</h3>
+          <h3 className="section-title">Clases del nivel</h3>
           <div className="program-class-grid">
-            {classes.map((cls) => {
+            {classes.map((cls: CourseFolderNode) => {
               const courseCount = (cls.courses?.length ?? 0) + countCoursesInSubtree(cls);
               return (
                 <div
@@ -87,11 +89,10 @@ export const ProgramPage: React.FC = () => {
                   role="button"
                   tabIndex={0}
                 >
-                  <div style={{ fontSize: '2rem', marginBottom: '8px' }}>📖</div>
-                  <h4 style={{ margin: '0 0 8px', color: '#1a237e' }}>{cls.name}</h4>
-                  <p style={{ margin: 0, color: '#64748b', fontSize: '0.9rem' }}>
-                    {courseCount} recurso(s) disponible(s)
-                  </p>
+                  <div style={{ fontSize: '2rem' }}>📖</div>
+                  <h4>{cls.name}</h4>
+                  <p>{courseCount} recurso(s) disponible(s)</p>
+                  <span className="card-action-link">Ver contenido →</span>
                 </div>
               );
             })}
@@ -101,17 +102,19 @@ export const ProgramPage: React.FC = () => {
 
       {coursesInLevel.length > 0 && (
         <>
-          <h3 style={{ color: '#1a237e', marginTop: '28px' }}>Cursos del nivel</h3>
+          <h3 className="section-title">Cursos del nivel</h3>
           <div className="program-class-grid">
-            {coursesInLevel.map((c) => (
-              <CourseTile key={c.id} course={c} onOpen={() => navigate(`/courses/${c.id}`)} />
+            {coursesInLevel.map((c: MoodleCourse) => (
+              <CourseTile key={c.id} course={c} onOpen={() => navigate(`/app/cursos/${c.id}`)} />
             ))}
           </div>
         </>
       )}
 
       {classes.length === 0 && coursesInLevel.length === 0 && (
-        <p style={{ color: '#94a3b8' }}>Este nivel aún no tiene clases ni cursos asignados.</p>
+        <div className="home-card">
+          <p className="page-description" style={{ margin: 0 }}>Este nivel aún no tiene clases ni cursos asignados.</p>
+        </div>
       )}
     </div>
   );
@@ -125,8 +128,9 @@ function countCoursesInSubtree(node: CourseFolderNode): number {
 
 const CourseTile: React.FC<{ course: MoodleCourse; onOpen: () => void }> = ({ course, onOpen }) => (
   <div className="program-class-card" onClick={onOpen} role="button" tabIndex={0}>
-    <div style={{ fontSize: '1.5rem' }}>📘</div>
-    <h4 style={{ margin: '8px 0 4px' }}>{course.name}</h4>
-    <span style={{ fontSize: '0.8rem', color: '#64748b' }}>{course.code}</span>
+    <div style={{ fontSize: '2rem' }}>📘</div>
+    <h4>{course.name}</h4>
+    <span className="card-subtitle">{course.code}</span>
+    <span className="card-action-link">Entrar al curso →</span>
   </div>
 );

@@ -1,0 +1,156 @@
+/* =========================================
+   WIDGETS DE INICIO (MICROLEARNING & PROGRESO)
+========================================= */
+.widget-card {
+  background: var(--bg-color);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02);
+  margin-bottom: 24px;
+  transition: transform 0.3s ease;
+}
+
+.widget-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.04);
+}
+
+.widget-card h3 {
+  color: var(--text-main);
+  font-family: var(--font-titles);
+  font-size: 1.25rem;
+  margin: 0 0 16px 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.progress-bar-container {
+  width: 100%;
+  height: 12px;
+  background: var(--bg-surface);
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--primary-color) 0%, #0096ff 100%);
+  border-radius: 8px;
+  transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* =========================================
+   FOROS (LISTA DE TEMAS Y DISCUSIÓN)
+========================================= */
+.forum-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  animation: fadeIn 0.4s ease-out;
+}
+
+.forum-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.forum-topic-card {
+  background: var(--bg-color);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 20px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.forum-topic-card:hover {
+  background: var(--bg-surface);
+  border-color: var(--primary-color);
+  transform: translateX(4px);
+}
+
+.forum-post {
+  padding: 20px;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: var(--bg-color);
+}
+
+.forum-post.highlight {
+  background: rgba(0, 113, 188, 0.03); /* Celestito muy suave para el post original */
+  border-color: rgba(0, 113, 188, 0.2);
+}
+
+.forum-post-header {
+  display: flex;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 12px;
+  margin-bottom: 16px;
+}
+
+.forum-post-author {
+  color: var(--primary-color);
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.forum-input-box {
+  width: 100%;
+  padding: 14px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  font-family: var(--font-body);
+  font-size: 1rem;
+  transition: all 0.2s ease;
+  background: var(--bg-surface);
+}
+
+.forum-input-box:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  background: var(--bg-color);
+  box-shadow: 0 0 0 3px rgba(0, 113, 188, 0.1);
+}
+
+/* =========================================
+   TAREAS (TASK VIEW)
+========================================= */
+.task-upload-zone {
+  border: 2px dashed var(--border-color);
+  border-radius: 12px;
+  padding: 40px 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: var(--bg-surface);
+  margin-bottom: 24px;
+}
+
+.task-upload-zone:hover {
+  border-color: var(--primary-color);
+  background: rgba(0, 113, 188, 0.02);
+}
+
+.task-upload-zone.has-file {
+  border-style: solid;
+  border-color: var(--primary-color);
+  background: rgba(0, 113, 188, 0.05);
+}
+
+.status-badge {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  border-radius: 12px;
+  margin-bottom: 24px;
+}

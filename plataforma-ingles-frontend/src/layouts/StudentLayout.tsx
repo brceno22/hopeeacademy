@@ -1,17 +1,22 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { StudentLayoutProvider, useStudentLayout } from '../context/StudentLayoutContext';
-import '../styles/student-layout.css';
+import { StudentLayoutProvider, useStudentLayout } from './StudentLayoutContext';
+import "./student-layout.css";
+import api from '../core/api/axios';
 
 const NAV_ITEMS = [
   { to: '/app/inicio', icon: '🏠', label: 'Inicio' },
   { to: '/app/programa', icon: '🎓', label: 'Mi programa' },
   { to: '/app/cursos', icon: '📚', label: 'Mis cursos' },
   { to: '/app/examenes', icon: '📝', label: 'Exámenes' },
+  { to: '/app/microlearning', icon: '⚡', label: 'Microlearning' },
+  { to: '/app/foro', icon: '💬', label: 'Foro' },
+  { to: '/app/progreso', icon: '📊', label: 'Mi progreso' },
   { to: '/app/perfil', icon: '👤', label: 'Mi perfil' },
 ];
 
 function LayoutInner() {
+  const [streak, setStreak] = useState(0);
   const navigate = useNavigate();
   const location = useLocation();
   const {
@@ -35,6 +40,16 @@ function LayoutInner() {
     }
   }, [location.pathname, clearHeaderTabs]);
 
+  useEffect(() => {
+    const fetchStreak = async () => {
+      try {
+        const res = await api.get('/microlearning/today');
+        setStreak(res.data.currentStreak);
+      } catch (e) {}
+    };
+    fetchStreak();
+  }, []);
+
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('moodleUserId');
@@ -48,11 +63,17 @@ function LayoutInner() {
     <div className={`student-shell ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
       <aside className={`student-sidebar ${sidebarCollapsed ? 'collapsed' : ''}`}>
         <div className="student-sidebar-brand">
-          <span className="logo">🇬🇧</span>
+          <div className="logo-container">
+            <img 
+              src="/Iso-naranja-Hopee-Academy.png" 
+              alt="Logo" 
+              className="sidebar-logo-img" 
+            />
+          </div>
           {!sidebarCollapsed && (
-            <div>
-              <h1>Hopee English</h1>
-              <small style={{ color: '#94a3b8', fontSize: '0.75rem' }}>Academia virtual</small>
+            <div className="brand-text">
+              <h1>Hopee Academy</h1>
+              <small>Campus Virtual</small>
             </div>
           )}
         </div>
@@ -66,13 +87,13 @@ function LayoutInner() {
               title={sidebarCollapsed ? item.label : undefined}
             >
               <span className="icon">{item.icon}</span>
-              {!sidebarCollapsed && <span>{item.label}</span>}
+              {!sidebarCollapsed && <span className="nav-label">{item.label}</span>}
             </NavLink>
           ))}
         </nav>
 
         <div className="student-sidebar-footer">
-          <button type="button" className="nav-item" onClick={handleLogout} title="Cerrar sesión">
+          <button type="button" className="nav-item-logout" onClick={handleLogout} title="Cerrar sesión">
             <span className="icon">🚪</span>
             {!sidebarCollapsed && <span>Cerrar sesión</span>}
           </button>
@@ -81,10 +102,16 @@ function LayoutInner() {
 
       <div className="student-main-wrap">
         <header className="student-header">
-          <button type="button" className="toggle-sidebar-btn" onClick={toggleSidebar} aria-label="Menú">
-            ☰
-          </button>
-          <h2 className="student-header-title">{headerTitle}</h2>
+          <div className="header-left">
+            <button type="button" className="toggle-sidebar-btn" onClick={toggleSidebar} aria-label="Menú">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="3" y1="12" x2="21" y2="12"></line>
+                <line x1="3" y1="6" x2="21" y2="6"></line>
+                <line x1="3" y1="18" x2="21" y2="18"></line>
+              </svg>
+            </button>
+            <h2 className="student-header-title">{headerTitle}</h2>
+          </div>
 
           {headerTabs.length > 0 && (
             <div className="student-header-tabs">
@@ -101,8 +128,17 @@ function LayoutInner() {
             </div>
           )}
 
-          <div className="user-chip">
-            <span>👋 {fullName}</span>
+          <div className="header-right">
+            <div className={`streak-chip ${streak > 0 ? 'active' : 'inactive'}`}>
+              <span className="flame-icon">🔥</span>
+              <span className="streak-text">{streak} días</span>
+            </div>
+            <div className="user-profile-chip">
+              <div className="avatar-placeholder">
+                {fullName.charAt(0).toUpperCase()}
+              </div>
+              <span className="user-greeting">Hola, <strong>{fullName.split(' ')[0]}</strong></span>
+            </div>
           </div>
         </header>
 
@@ -111,8 +147,8 @@ function LayoutInner() {
         </main>
 
         <footer className="student-footer">
-          © 2026 Hopee English — Academia virtual de inglés · Soporte: soporte@hopee-english.com ·
-          Horario de atención: Lun–Vie 9:00–18:00 · Certificaciones internacionales Cambridge &amp; TOEFL prep.
+          <p>© 2026 <strong>Hopee English</strong> — Academia virtual de inglés</p>
+          <p className="footer-meta">Soporte: soporte@hopee-english.com · Lun–Vie 9:00–18:00</p>
         </footer>
       </div>
     </div>
