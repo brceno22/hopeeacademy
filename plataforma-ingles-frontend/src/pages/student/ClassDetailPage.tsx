@@ -1,9 +1,12 @@
+
+//ClassDetailPage.tsx
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import api from '../../api/axios';
-import { useStudentLayout } from '../../context/StudentLayoutContext';
-import type { CourseFolderNode } from '../../types/courses-catalog';
-import { normalizeTree } from '../../utils/courseTree';
+import api from '../../core/api/axios';
+import { useStudentLayout } from '../../layouts/StudentLayoutContext';
+import type { CourseFolderNode } from '../../core/types/courses-catalog';
+import { normalizeTree } from '../../features/courses/utils/courseTree';
+import "@/features/courses/styles/program-courses.css";
 
 function findNodeById(nodes: CourseFolderNode[], id: number): CourseFolderNode | null {
   for (const n of nodes) {
@@ -58,34 +61,34 @@ export const ClassDetailPage: React.FC = () => {
       ? classNode?.courses ?? []
       : [...(activeSection?.courses ?? []), ...(activeSection?.children?.flatMap((c) => c.courses ?? []) ?? [])];
 
-  if (loading) return <p>Cargando clase...</p>;
+  if (loading) return <p className="page-description">Cargando clase...</p>;
   if (!classNode) {
     return (
-      <p>
+      <p className="page-description">
         Clase no encontrada.{' '}
-        <button type="button" onClick={() => navigate('/app/programa')}>Volver al programa</button>
+        <button type="button" className="btn-back" onClick={() => navigate('/app/programa')}>Volver al programa</button>
       </p>
     );
   }
 
   return (
-    <div>
+    <div className="fade-in-page">
       <button
         type="button"
+        className="btn-back"
         onClick={() => navigate('/app/programa')}
-        style={{ marginBottom: '20px', background: 'transparent', border: '1px solid #ccc', padding: '8px 14px', borderRadius: '8px', cursor: 'pointer' }}
       >
-        ← Volver a niveles
+        <span>←</span> Volver a niveles
       </button>
 
-      <p style={{ color: '#64748b' }}>
+      <p className="page-description">
         Contenido de <strong>{classNode.name}</strong>
         {activeSection ? ` · ${activeSection.name}` : ''}
       </p>
 
       {coursesToShow.length === 0 ? (
         <div className="home-card">
-          <p style={{ color: '#64748b' }}>No hay cursos enlazados en esta sección todavía.</p>
+          <p className="page-description" style={{ margin: 0 }}>No hay cursos enlazados en esta sección todavía.</p>
         </div>
       ) : (
         <div className="program-class-grid">
@@ -93,16 +96,14 @@ export const ClassDetailPage: React.FC = () => {
             <div
               key={c.id}
               className="program-class-card"
-              onClick={() => navigate(`/courses/${c.id}`)}
+              onClick={() => navigate(`/app/cursos/${c.id}`)}
               role="button"
               tabIndex={0}
             >
-              <div style={{ fontSize: '1.5rem' }}>📘</div>
-              <h4 style={{ margin: '8px 0' }}>{c.name}</h4>
-              <p style={{ margin: 0, fontSize: '0.85rem', color: '#64748b' }}>{c.description?.slice(0, 80)}</p>
-              <span style={{ display: 'inline-block', marginTop: '12px', color: '#1a237e', fontWeight: 'bold', fontSize: '0.9rem' }}>
-                Entrar al curso →
-              </span>
+              <div style={{ fontSize: '2rem' }}>📘</div>
+              <h4>{c.name}</h4>
+              <p>{c.description?.slice(0, 80)}...</p>
+              <span className="card-action-link">Entrar al curso →</span>
             </div>
           ))}
         </div>

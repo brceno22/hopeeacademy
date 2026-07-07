@@ -1,0 +1,197 @@
+/* =========================================
+   LAYOUT DEL AULA (COURSE VIEW)
+========================================= */
+.course-view-container {
+  display: flex;
+  height: 100%;
+  min-height: 70vh;
+  gap: 24px;
+  animation: fadeIn 0.4s ease-out;
+}
+
+/* Columna Izquierda (Índice) */
+.course-sidebar {
+  width: 300px;
+  background: var(--bg-color);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02);
+  overflow-y: auto;
+}
+
+.course-sidebar h3 {
+  font-family: var(--font-titles);
+  color: var(--primary-color);
+  font-size: 1.2rem;
+  margin-bottom: 20px;
+}
+
+.course-sidebar h4 {
+  font-size: 0.95rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: 20px 0 10px 0;
+}
+
+/* Botones del menú lateral */
+.module-list-btn {
+  width: 100%;
+  text-align: left;
+  padding: 12px 16px;
+  background: transparent;
+  color: var(--text-main);
+  border: 1px solid transparent;
+  border-radius: 12px;
+  cursor: pointer;
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: all 0.2s ease;
+  margin-bottom: 6px;
+}
+
+.module-list-btn:hover {
+  background: var(--bg-surface);
+}
+
+.module-list-btn.active {
+  background: rgba(0, 113, 188, 0.08);
+  color: var(--primary-color);
+  border-color: rgba(0, 113, 188, 0.2);
+  font-weight: 600;
+}
+
+/* Columna Derecha (Contenido) */
+.course-main-content {
+  flex: 1;
+  background: var(--bg-color);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  padding: 40px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02);
+  overflow-y: auto;
+}
+
+.module-badge {
+  background: var(--bg-surface);
+  color: var(--text-muted);
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  font-weight: bold;
+  border: 1px solid var(--border-color);
+}
+
+/* =========================================
+   REPRODUCTOR DE EXÁMENES (EXAM VIEW)
+========================================= */
+.exam-container {
+  max-width: 800px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.exam-header-icon {
+  width: 80px;
+  height: 80px;
+  background: rgba(255, 123, 0, 0.1);
+  color: var(--secondary-color);
+  font-size: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  margin: 0 auto 20px;
+}
+
+.exam-progress-bar-bg {
+  width: 100%;
+  background: var(--border-color);
+  border-radius: 8px;
+  height: 8px;
+  overflow: hidden;
+}
+
+.exam-progress-bar-fill {
+  height: 100%;
+  background: var(--secondary-color); /* Naranja de Hopee */
+  border-radius: 8px;
+  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.exam-question-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  padding: 30px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.03);
+}
+
+.exam-option-btn {
+  width: 100%;
+  padding: 16px 20px;
+  border: 2px solid var(--border-color);
+  background: var(--bg-color);
+  color: var(--text-main);
+  border-radius: 12px;
+  text-align: left;
+  font-size: 1rem;
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-bottom: 12px;
+}
+
+.exam-option-btn:hover {
+  border-color: rgba(0, 113, 188, 0.4);
+  background: var(--bg-surface);
+}
+
+.exam-option-btn.selected {
+  border-color: var(--primary-color);
+  background: rgba(0, 113, 188, 0.05);
+  color: var(--primary-color);
+  font-weight: 600;
+}
+
+/* =========================================
+   BOTONES Y ESTADOS DE ÉXITO
+========================================= */
+.btn-success {
+  background: #10B981; /* Verde esmeralda moderno para "Aprobado/Terminado" */
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 12px;
+  font-weight: bold;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
+}
+
+.btn-success:hover {
+  background: #059669;
+  transform: translateY(-2px);
+}
+
+.success-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background: rgba(16, 185, 129, 0.1);
+  color: #059669;
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  border-radius: 12px;
+  font-weight: bold;
+}

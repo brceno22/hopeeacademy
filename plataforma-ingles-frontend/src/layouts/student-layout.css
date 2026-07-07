@@ -1,0 +1,365 @@
+/* =========================================
+   ESTRUCTURA PRINCIPAL (APP SHELL)
+========================================= */
+.student-shell {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  background-color: var(--bg-surface);
+}
+
+.student-main-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+}
+
+/* =========================================
+   BARRA LATERAL (SIDEBAR)
+========================================= */
+.student-sidebar {
+  width: 260px;
+  background-color: var(--bg-color);
+  display: flex;
+  flex-direction: column;
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.04);
+  z-index: 10;
+}
+
+.student-sidebar.collapsed {
+  width: 80px;
+}
+
+/* =========================================
+   LOGO Y MARCA
+========================================= */
+
+.student-sidebar-brand {
+  height: 90px;
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  gap: 15px;
+  border-bottom: 1px solid var(--border-color);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.sidebar-logo-full-container {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start; /* Alineado al inicio junto con los botones */
+  padding-left: 4px;
+}
+
+.sidebar-logo-full {
+  max-width: 190px; /* 👈 Si lo llegás a ver chico todavía, subí este número a 210px */
+  height: auto;
+  object-fit: contain;
+  display: block;
+}
+
+.logo-container {
+  min-width: 44px;
+  max-width: 44px;
+  height: 44px;
+  background: var(--bg-surface);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: 4px;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);
+  margin: 0 auto; 
+}
+
+.sidebar-logo-img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain !important; 
+  display: block;
+}
+
+.logo-icon {
+  font-size: 22px;
+}
+
+.brand-text h1 {
+  color: var(--primary-color);
+  font-size: 22px;
+  margin: 0;
+  line-height: 1.1;
+  letter-spacing: 0.5px;
+}
+
+.brand-text small {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  display: block;
+  margin-top: 2px;
+}
+
+/* Navegación */
+.student-nav {
+  flex: 1;
+  padding: 24px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+}
+
+.student-nav a {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 16px;
+  color: var(--text-muted);
+  border-radius: 12px; /* Botones tipo píldora */
+  font-weight: 500;
+  text-decoration: none;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  white-space: nowrap;
+}
+
+.student-nav a .icon {
+  font-size: 20px;
+  transition: transform 0.2s ease;
+}
+
+.student-nav a:hover {
+  background-color: var(--bg-surface);
+  color: var(--text-main);
+  transform: translateX(4px); /* Animación copada al pasar el mouse */
+}
+
+.student-nav a:hover .icon {
+  transform: scale(1.1);
+}
+
+/* Estado Activo del Menú */
+.student-nav a.active {
+  background-color: var(--primary-color);
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(0, 113, 188, 0.3); /* Sombra azul brillante */
+}
+
+/* Footer del Sidebar (Logout) */
+.student-sidebar-footer {
+  padding: 20px 12px;
+  border-top: 1px solid var(--border-color);
+}
+
+.nav-item-logout {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 16px;
+  background: transparent;
+  border: none;
+  border-radius: 12px;
+  color: #ef4444; /* Rojo suave para salir */
+  font-weight: 600;
+  font-family: inherit;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.nav-item-logout:hover {
+  background-color: #fef2f2;
+}
+
+/* =========================================
+   CABECERA (HEADER)
+========================================= */
+.student-header {
+  height: 80px;
+  background-color: var(--bg-color);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 30px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03); /* Sombra flotante sutil */
+  z-index: 5;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.toggle-sidebar-btn {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  color: var(--text-main);
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.toggle-sidebar-btn:hover {
+  background: var(--border-color);
+  color: var(--primary-color);
+}
+
+.student-header-title {
+  font-size: 24px;
+  margin: 0;
+  color: var(--text-main);
+}
+
+/* Tabs del Header (Si hay submenús) */
+.student-header-tabs {
+  display: flex;
+  gap: 8px;
+  background: var(--bg-surface);
+  padding: 6px;
+  border-radius: 12px;
+}
+
+.student-header-tab {
+  padding: 8px 16px;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  font-family: inherit;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.student-header-tab.active {
+  background: var(--bg-color);
+  color: var(--primary-color);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+
+/* Chips de Usuario y Racha (Derecha) */
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.streak-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 99px;
+  font-family: var(--font-titles);
+  font-size: 16px;
+  transition: all 0.3s ease;
+}
+
+.streak-chip.active {
+  background-color: #FFF3E0; /* Naranja súper clarito de fondo */
+  color: var(--secondary-color);
+  border: 1px solid #FFE0B2;
+}
+
+.streak-chip.inactive {
+  background-color: var(--bg-surface);
+  color: var(--text-muted);
+  border: 1px solid var(--border-color);
+  filter: grayscale(1);
+}
+
+.user-profile-chip {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 16px 6px 6px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: 99px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.user-profile-chip:hover {
+  border-color: var(--primary-color);
+  box-shadow: 0 4px 12px rgba(0, 113, 188, 0.1);
+}
+
+.avatar-placeholder {
+  width: 34px;
+  height: 34px;
+  background: var(--primary-color);
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-family: var(--font-titles);
+  font-size: 18px;
+}
+
+.user-greeting {
+  color: var(--text-main);
+  font-size: 15px;
+}
+
+/* =========================================
+   ÁREA DE CONTENIDO (MAIN)
+========================================= */
+.student-content {
+  flex: 1;
+  padding: 30px;
+  overflow-y: auto;
+  scroll-behavior: smooth;
+}
+
+/* Custom Scrollbar para el contenido */
+.student-content::-webkit-scrollbar {
+  width: 8px;
+}
+.student-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+.student-content::-webkit-scrollbar-thumb {
+  background-color: var(--border-color);
+  border-radius: 10px;
+}
+
+/* =========================================
+   FOOTER
+========================================= */
+.student-footer {
+  text-align: center;
+  padding: 20px;
+  font-size: 13px;
+  color: var(--text-muted);
+  background-color: var(--bg-color);
+  border-top: 1px solid var(--border-color);
+}
+
+.student-footer p {
+  margin: 4px 0;
+}
+
+.footer-meta {
+  font-size: 12px;
+  opacity: 0.8;
+}

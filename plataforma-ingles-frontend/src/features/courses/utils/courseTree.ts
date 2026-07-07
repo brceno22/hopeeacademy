@@ -1,4 +1,4 @@
-import type { CourseFolderNode } from '../types/courses-catalog';
+import type { CourseFolderNode } from '@/core/types/courses-catalog';
 
 export function normalizeTree(nodes: unknown): CourseFolderNode[] {
   if (!Array.isArray(nodes)) return [];

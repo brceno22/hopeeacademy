@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import api from '../api/axios';
+import api from '@/core/api/axios';
 
 interface Option { id?: number; text: string; isCorrect: boolean; }
 interface Question { id?: number; text: string; order: number; options: Option[]; }
