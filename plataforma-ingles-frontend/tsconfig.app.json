@@ -26,5 +26,5 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src", "../plataforma-ingles-backend/src/forums"]
+  "include": ["src"]
 }

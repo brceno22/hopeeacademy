@@ -1,0 +1,139 @@
+/* Microlearning Bite-Sized Card — usa tokens Hopee */
+
+.ml-page {
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.ml-page__intro {
+  color: var(--text-muted);
+  margin: 0 0 24px;
+  line-height: 1.5;
+}
+
+.ml-bite {
+  position: relative;
+  background: var(--bg-color);
+  border: 1px solid var(--border-color);
+  border-radius: 20px;
+  padding: 28px;
+  box-shadow: 0 8px 28px rgba(0, 113, 188, 0.06);
+  overflow: hidden;
+  animation: hopee-card-swap 0.45s ease-out;
+}
+
+.ml-bite::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 5px;
+  background: linear-gradient(180deg, var(--secondary-color), var(--primary-color));
+}
+
+.ml-bite__top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+}
+
+.ml-bite__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--secondary-color);
+  margin: 0 0 6px;
+}
+
+.ml-bite__title {
+  margin: 0;
+  font-size: 1.55rem;
+  color: var(--primary-color);
+  line-height: 1.25;
+}
+
+.ml-bite__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ml-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+}
+
+.ml-chip.level {
+  background: rgba(0, 113, 188, 0.1);
+  border-color: rgba(0, 113, 188, 0.2);
+  color: var(--primary-color);
+}
+
+.ml-chip.eta {
+  background: rgba(255, 123, 0, 0.1);
+  border-color: rgba(255, 123, 0, 0.22);
+  color: var(--secondary-color);
+}
+
+.ml-bite__body {
+  font-size: 1.35rem;
+  font-weight: 500;
+  color: var(--text-main);
+  line-height: 1.45;
+  margin: 8px 0 20px;
+  animation: hopee-fade-in 0.35s ease-out;
+}
+
+.ml-bite__audio {
+  width: 100%;
+  margin-bottom: 18px;
+  border-radius: 10px;
+}
+
+.ml-toggle {
+  background: none;
+  border: none;
+  color: var(--primary-color);
+  cursor: pointer;
+  font-weight: 600;
+  padding: 0;
+  margin-bottom: 12px;
+  font-family: inherit;
+}
+
+.ml-translation {
+  color: var(--text-muted);
+  font-style: italic;
+  margin: 0 0 20px;
+  background: var(--bg-surface);
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  animation: hopee-fade-in 0.3s ease-out;
+}
+
+.ml-bite__footer {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ml-streak-hint {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin: 0;
+}

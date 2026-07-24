@@ -16,17 +16,23 @@ export class ForumsService {
 
   async getForumDiscussions(forumId: number, token: string) {
     const params = { forumid: forumId };
-    const response = await this.moodleService.request('mod_forum_get_forum_discussions', params, token);
-    
-    // Moodle suele devolver las discusiones adentro del objeto "discussions"
+    const response = await this.moodleService.request<{ discussions?: unknown[] }>(
+      'mod_forum_get_forum_discussions',
+      params,
+      token,
+    );
+
     return response.discussions || [];
   }
 
   async getDiscussionPosts(discussionId: number, token: string) {
     const params = { discussionid: discussionId };
-    const response = await this.moodleService.request('mod_forum_get_discussion_posts', params, token);
-    
-    // Moodle devuelve los mensajes adentro de "posts"
+    const response = await this.moodleService.request<{ posts?: unknown[] }>(
+      'mod_forum_get_discussion_posts',
+      params,
+      token,
+    );
+
     return response.posts || [];
   }
 

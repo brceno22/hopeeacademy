@@ -135,6 +135,45 @@
   box-shadow: 0 0 0 4px rgba(0, 113, 188, 0.1);
 }
 
+.login-password-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.login-password-wrap .login-input {
+  padding-right: 48px;
+}
+
+.login-password-toggle {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0;
+  transition: color 0.2s ease, background 0.2s ease;
+}
+
+.login-password-toggle:hover:not(:disabled) {
+  color: var(--primary-color);
+  background: rgba(0, 113, 188, 0.08);
+}
+
+.login-password-toggle:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* Botón de Submit */
 .btn-login {
   width: 100%;

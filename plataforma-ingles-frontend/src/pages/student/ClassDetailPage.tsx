@@ -1,12 +1,9 @@
-
-//ClassDetailPage.tsx
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import api from '../../core/api/axios';
-import { useStudentLayout } from '../../layouts/StudentLayoutContext';
-import type { CourseFolderNode } from '../../core/types/courses-catalog';
-import { normalizeTree } from '../../features/courses/utils/courseTree';
-import "@/features/courses/styles/program-courses.css";
+import { useCoursesTree } from '@/core/hooks/useCoursesTree';
+import type { CourseFolderNode } from '@/core/types/courses-catalog';
+import '@/features/courses/styles/program-courses.css';
+import { useStudentLayout } from '@/layouts/StudentLayoutContext';
 
 function findNodeById(nodes: CourseFolderNode[], id: number): CourseFolderNode | null {
   for (const n of nodes) {
@@ -21,15 +18,7 @@ export const ClassDetailPage: React.FC = () => {
   const { classId } = useParams<{ classId: string }>();
   const navigate = useNavigate();
   const { setHeaderTitle, setHeaderTabs, activeTabId } = useStudentLayout();
-  const [tree, setTree] = useState<CourseFolderNode[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    api.get('/courses/tree').then((res) => {
-      setTree(normalizeTree(res.data));
-      setLoading(false);
-    });
-  }, []);
+  const { data: tree = [], isLoading, isError, refetch } = useCoursesTree();
 
   const classNode = useMemo(() => {
     const id = parseInt(classId ?? '0', 10);
@@ -54,41 +43,60 @@ export const ClassDetailPage: React.FC = () => {
   const activeSection =
     activeTabId === 'general'
       ? null
-      : sections.find((s) => String(s.id) === activeTabId) ?? sections[0];
+      : (sections.find((s) => String(s.id) === activeTabId) ?? sections[0]);
 
   const coursesToShow =
     activeTabId === 'general' || !sections.length
-      ? classNode?.courses ?? []
-      : [...(activeSection?.courses ?? []), ...(activeSection?.children?.flatMap((c) => c.courses ?? []) ?? [])];
+      ? (classNode?.courses ?? [])
+      : [
+          ...(activeSection?.courses ?? []),
+          ...(activeSection?.children?.flatMap((c) => c.courses ?? []) ?? []),
+        ];
 
-  if (loading) return <p className="page-description">Cargando clase...</p>;
+  if (isLoading) return <p className="page-description">Loading class...</p>;
+
+  if (isError) {
+    return (
+      <div className="home-card">
+        <p className="page-description">Could not load the class.</p>
+        <button type="button" className="btn-card primary" onClick={() => void refetch()}>
+          Try again
+        </button>
+      </div>
+    );
+  }
+
   if (!classNode) {
     return (
       <p className="page-description">
-        Clase no encontrada.{' '}
-        <button type="button" className="btn-back" onClick={() => navigate('/app/programa')}>Volver al programa</button>
+        Class not found.{' '}
+        <button
+          type="button"
+          className="btn-back"
+          onClick={() => navigate('/app/programa')}
+        >
+          Back to program
+        </button>
       </p>
     );
   }
 
   return (
     <div className="fade-in-page">
-      <button
-        type="button"
-        className="btn-back"
-        onClick={() => navigate('/app/programa')}
-      >
-        <span>←</span> Volver a niveles
+      <button type="button" className="btn-back" onClick={() => navigate('/app/programa')}>
+        <span>←</span> Back to levels
       </button>
 
       <p className="page-description">
-        Contenido de <strong>{classNode.name}</strong>
+        Content for <strong>{classNode.name}</strong>
         {activeSection ? ` · ${activeSection.name}` : ''}
       </p>
 
       {coursesToShow.length === 0 ? (
         <div className="home-card">
-          <p className="page-description" style={{ margin: 0 }}>No hay cursos enlazados en esta sección todavía.</p>
+          <p className="page-description" style={{ margin: 0 }}>
+            No courses linked in this section yet.
+          </p>
         </div>
       ) : (
         <div className="program-class-grid">
@@ -103,7 +111,7 @@ export const ClassDetailPage: React.FC = () => {
               <div style={{ fontSize: '2rem' }}>📘</div>
               <h4>{c.name}</h4>
               <p>{c.description?.slice(0, 80)}...</p>
-              <span className="card-action-link">Entrar al curso →</span>
+              <span className="card-action-link">Enter course →</span>
             </div>
           ))}
         </div>

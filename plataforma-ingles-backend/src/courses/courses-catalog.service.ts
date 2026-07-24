@@ -1,15 +1,18 @@
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import {
   BadRequestException,
+  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import type { Cache } from 'cache-manager';
 import { Repository } from 'typeorm';
-import { CourseFolder } from './entities/course-folder.entity';
-import { CourseFolderLink } from './entities/course-folder-link.entity';
+import { AssignCourseToFolderDto } from './dto/assign-course.dto';
 import { CreateCourseFolderDto } from './dto/create-course-folder.dto';
 import { UpdateCourseFolderDto } from './dto/update-course-folder.dto';
-import { AssignCourseToFolderDto } from './dto/assign-course.dto';
+import { CourseFolderLink } from './entities/course-folder-link.entity';
+import { CourseFolder } from './entities/course-folder.entity';
 import { CoursesService, MoodleCourseSummary } from './courses.service';
 
 export interface CourseInTree extends MoodleCourseSummary {
@@ -29,12 +32,15 @@ export interface CourseFolderTreeNode {
 
 @Injectable()
 export class CoursesCatalogService {
+  private static readonly TREE_TTL_MS = 90_000;
+
   constructor(
     @InjectRepository(CourseFolder)
     private readonly folderRepo: Repository<CourseFolder>,
     @InjectRepository(CourseFolderLink)
     private readonly linkRepo: Repository<CourseFolderLink>,
     private readonly coursesService: CoursesService,
+    @Inject(CACHE_MANAGER) private readonly cache: Cache,
   ) {}
 
   /**
@@ -42,16 +48,33 @@ export class CoursesCatalogService {
    * Solo incluye cursos a los que el usuario está inscripto (token Moodle).
    */
   async getTreeForStudent(moodleUserToken?: string): Promise<CourseFolderTreeNode[]> {
+    const tokenKey = moodleUserToken ? moodleUserToken.slice(0, 16) : 'anon';
+    const cacheKey = `courses:tree:student:${tokenKey}`;
+    const cached = await this.cache.get<CourseFolderTreeNode[]>(cacheKey);
+    if (cached) return cached;
+
     const allCourses = await this.coursesService.findAllForUser(moodleUserToken);
     const allowedIds = new Set(allCourses.map((c) => c.id));
-    return this.buildTree(allCourses, allowedIds);
+    const tree = await this.buildTree(allCourses, allowedIds);
+    await this.cache.set(cacheKey, tree, CoursesCatalogService.TREE_TTL_MS);
+    return tree;
   }
 
   /** Árbol completo para admin (todos los cursos Moodle). */
   async getTreeForAdmin(): Promise<CourseFolderTreeNode[]> {
+    const cacheKey = 'courses:tree:admin';
+    const cached = await this.cache.get<CourseFolderTreeNode[]>(cacheKey);
+    if (cached) return cached;
+
     const allCourses = await this.coursesService.findAll();
     const allowedIds = new Set(allCourses.map((c) => c.id));
-    return this.buildTree(allCourses, allowedIds);
+    const tree = await this.buildTree(allCourses, allowedIds);
+    await this.cache.set(cacheKey, tree, CoursesCatalogService.TREE_TTL_MS);
+    return tree;
+  }
+
+  private async invalidateTreeCache(): Promise<void> {
+    await this.cache.del('courses:tree:admin');
   }
 
   async createFolder(dto: CreateCourseFolderDto): Promise<CourseFolder> {
@@ -62,7 +85,9 @@ export class CoursesCatalogService {
       slug: dto.slug ?? null,
       sortOrder: dto.sortOrder ?? 0,
     });
-    return this.folderRepo.save(folder);
+    const saved = await this.folderRepo.save(folder);
+    await this.invalidateTreeCache();
+    return saved;
   }
 
   async updateFolder(id: number, dto: UpdateCourseFolderDto): Promise<CourseFolder> {
@@ -86,7 +111,9 @@ export class CoursesCatalogService {
     if (dto.sortOrder !== undefined) folder.sortOrder = dto.sortOrder;
     if (dto.isActive !== undefined) folder.isActive = dto.isActive;
 
-    return this.folderRepo.save(folder);
+    const saved = await this.folderRepo.save(folder);
+    await this.invalidateTreeCache();
+    return saved;
   }
 
   async deleteFolder(id: number): Promise<{ message: string; deletedFolderId: number }> {
@@ -95,6 +122,7 @@ export class CoursesCatalogService {
     const links = await this.linkRepo.count({ where: { folderId: id } });
 
     await this.folderRepo.delete(id);
+    await this.invalidateTreeCache();
 
     return {
       deletedFolderId: id,
@@ -120,12 +148,15 @@ export class CoursesCatalogService {
       moodleCourseId,
       sortOrder: dto.sortOrder ?? 0,
     });
-    return this.linkRepo.save(link);
+    const saved = await this.linkRepo.save(link);
+    await this.invalidateTreeCache();
+    return saved;
   }
 
   async unassignCourse(linkId: number): Promise<void> {
     const result = await this.linkRepo.delete(linkId);
     if (!result.affected) throw new NotFoundException(`Enlace ${linkId} no encontrado`);
+    await this.invalidateTreeCache();
   }
 
   async seedDefaultFolders(): Promise<{ message: string }> {

@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { UserProgress } from './user-progress.entity';
@@ -14,19 +14,8 @@ export class ProgressService {
     private readonly coursesService: CoursesService,
   ) {}
 
-  // Helper para sacar el userId de Moodle usando el token
-  private async getUserIdFromToken(token: string): Promise<number> {
-    try {
-      const info = await this.moodleService.request('core_webservice_get_site_info', {}, token);
-      if (!info || !info.userid) throw new Error();
-      return info.userid;
-    } catch (error) {
-      throw new UnauthorizedException('Token de Moodle inválido o expirado');
-    }
-  }
-
   async markAsCompleted(token: string, courseId: number, moduleId: number, type: string) {
-    const userId = await this.getUserIdFromToken(token);
+    const userId = await this.moodleService.getUserIdFromToken(token);
 
     // Verificamos si ya existe para hacerlo idempotente
     const existing = await this.progressRepository.findOne({
@@ -49,7 +38,7 @@ export class ProgressService {
   }
 
   async getCourseProgress(token: string, courseId: number) {
-    const userId = await this.getUserIdFromToken(token);
+    const userId = await this.moodleService.getUserIdFromToken(token);
 
     // 1. Traemos los contenidos del curso usando el servicio que ya tenés armado
     const sections = await this.coursesService.getCourseContents(courseId);
@@ -92,7 +81,7 @@ export class ProgressService {
   }
 
   async getGlobalProgress(token: string) {
-    const userId = await this.getUserIdFromToken(token);
+    const userId = await this.moodleService.getUserIdFromToken(token);
 
     // 1. Traemos a qué clases/cursos tiene acceso
     const enrolledCourses = await this.moodleService.request(

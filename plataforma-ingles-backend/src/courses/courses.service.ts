@@ -1,7 +1,10 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { LessonsService } from 'src/lessons/lessons.service';
-import { MoodleService } from 'src/moodle/moodle.service';
-import { TasksService } from 'src/tasks/tasks.service';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import type { Cache } from 'cache-manager';
+import { LessonsService } from '../lessons/lessons.service';
+import { MoodleService } from '../moodle/moodle.service';
+import { MoodleCourseRaw, MoodleModuleRaw, MoodleSectionRaw } from '../moodle/moodle.types';
+import { TasksService } from '../tasks/tasks.service';
 
 export interface MoodleCourseSummary {
   id: number;
@@ -10,18 +13,48 @@ export interface MoodleCourseSummary {
   description: string;
 }
 
+export interface CourseModuleView {
+  id: number;
+  name: string;
+  type: string;
+  category: string;
+  instanceId?: number;
+  description: string;
+  url: string;
+  fileUrl: string | null;
+}
+
+export interface CourseSectionView {
+  id: number;
+  name: string;
+  summary: string;
+  modules: CourseModuleView[];
+}
+
 @Injectable()
 export class CoursesService {
+  private static readonly CONTENTS_TTL_MS = 90_000;
+  private static readonly COURSES_TTL_MS = 90_000;
+
   constructor(
     private readonly moodleService: MoodleService,
-    private readonly tasksService: TasksService,     
+    private readonly tasksService: TasksService,
     private readonly lessonsService: LessonsService,
+    @Inject(CACHE_MANAGER) private readonly cache: Cache,
   ) {}
-  
+
   /** Todos los cursos académicos (token de servicio). Para admin. */
   async findAll(): Promise<MoodleCourseSummary[]> {
-    const data = await this.moodleService.request('core_course_get_courses_by_field');
-    return this.mapCourses(data.courses || []);
+    const cacheKey = 'moodle:courses:all';
+    const cached = await this.cache.get<MoodleCourseSummary[]>(cacheKey);
+    if (cached) return cached;
+
+    const data = await this.moodleService.request<{ courses?: MoodleCourseRaw[] }>(
+      'core_course_get_courses_by_field',
+    );
+    const mapped = this.mapCourses(data.courses || []);
+    await this.cache.set(cacheKey, mapped, CoursesService.COURSES_TTL_MS);
+    return mapped;
   }
 
   /**
@@ -30,100 +63,98 @@ export class CoursesService {
    */
   async findAllForUser(userToken?: string): Promise<MoodleCourseSummary[]> {
     if (userToken) {
+      const cacheKey = `moodle:courses:user:${userToken.slice(0, 16)}`;
+      const cached = await this.cache.get<MoodleCourseSummary[]>(cacheKey);
+      if (cached) return cached;
+
       try {
-        const data = await this.moodleService.request(
+        const userId = await this.moodleService.getUserIdFromToken(userToken);
+        const data = await this.moodleService.request<MoodleCourseRaw[]>(
           'core_enrol_get_users_courses',
-          { userid: await this.resolveUserIdFromToken(userToken) },
+          { userid: userId },
           userToken,
         );
         const list = Array.isArray(data) ? data : [];
         if (list.length > 0) {
-          return list
-            .filter((c: { id?: number }) => c.id && c.id > 1)
-            .map((curso: Record<string, unknown>) => ({
-              id: curso.id as number,
-              name: (curso.fullname as string) || (curso.displayname as string) || '',
-              code: (curso.shortname as string) || '',
+          const mapped = list
+            .filter((c) => c.id && c.id > 1)
+            .map((curso) => ({
+              id: curso.id,
+              name: curso.fullname || curso.displayname || '',
+              code: curso.shortname || '',
               description: curso.summary
                 ? String(curso.summary).replace(/<[^>]*>/g, '')
                 : 'Sin descripción',
             }));
+          await this.cache.set(cacheKey, mapped, CoursesService.COURSES_TTL_MS);
+          return mapped;
         }
       } catch {
-        // fallback al listado general
+        // fallback al listado general si el token falla o no hay matrículas
       }
     }
     return this.findAll();
   }
 
-  private async resolveUserIdFromToken(userToken: string): Promise<number> {
-    const info = await this.moodleService.request(
-      'core_webservice_get_site_info',
-      {},
-      userToken,
-    );
-    return info.userid;
-  }
-
-  private mapCourses(cursos: Record<string, unknown>[]): MoodleCourseSummary[] {
+  private mapCourses(cursos: MoodleCourseRaw[]): MoodleCourseSummary[] {
     return cursos
       .filter((curso) => curso.format !== 'site')
       .map((curso) => ({
-        id: curso.id as number,
-        name: curso.fullname as string,
-        code: curso.shortname as string,
+        id: curso.id,
+        name: (curso.fullname as string) || '',
+        code: (curso.shortname as string) || '',
         description: curso.summary
           ? String(curso.summary).replace(/<[^>]*>/g, '')
           : 'Sin descripción',
       }));
   }
 
+  async getCourseContents(courseId: number): Promise<CourseSectionView[]> {
+    const cacheKey = `moodle:contents:${courseId}`;
+    const cached = await this.cache.get<CourseSectionView[]>(cacheKey);
+    if (cached) return cached;
 
-  async getCourseContents(courseId: number) {
-    // 1. Pedimos a Moodle los contenidos del curso
-    const data = await this.moodleService.request('core_course_get_contents', {
-      courseid: courseId,
-    });
+    const data = await this.moodleService.request<MoodleSectionRaw[]>(
+      'core_course_get_contents',
+      { courseid: courseId },
+    );
 
-    if (!data || data.exception) {
+    if (!data || !Array.isArray(data)) {
       throw new NotFoundException(`No se pudieron cargar los contenidos del curso ${courseId}`);
     }
 
     const contenidosDidacticos = ['label', 'resource', 'book', 'lesson', 'glossary', 'page'];
     const tareas = ['assign'];
     const tests = ['quiz'];
-    const foros = ['forum']; // ✨ NUEVO: Agregamos el módulo de foros
+    const foros = ['forum'];
 
-    return data.map((section: any) => {
-      const contenidos = section.modules
-        // ✨ NUEVO: Incluimos el array de foros en el filtro
-        .filter((mod: any) => [...contenidosDidacticos, ...tareas, ...tests, ...foros].includes(mod.modname))
-        .map((mod: any) => {
-          
-          // 🧠 DELEGACIÓN MODULAR: Cada servicio se encarga de lo suyo
+    const sections: CourseSectionView[] = data.map((section) => {
+      const modules = (section.modules || [])
+        .filter((mod) =>
+          [...contenidosDidacticos, ...tareas, ...tests, ...foros].includes(mod.modname),
+        )
+        .map((mod: MoodleModuleRaw) => {
           if (tareas.includes(mod.modname)) {
-            return this.tasksService.formatTask(mod);
-          }
-          
-          if (contenidosDidacticos.includes(mod.modname)) {
-            return this.lessonsService.formatLesson(mod);
+            return this.tasksService.formatTask(mod) as CourseModuleView;
           }
 
-          // ✨ NUEVO: Mapeo específico para los foros
+          if (contenidosDidacticos.includes(mod.modname)) {
+            return this.lessonsService.formatLesson(mod) as CourseModuleView;
+          }
+
           if (foros.includes(mod.modname)) {
             return {
               id: mod.id,
               name: mod.name,
-              type: 'forum',         // El front lo lee para saber que componente cargar
-              category: 'foro',      // Categoría genérica para el chip visual
-              instanceId: mod.instance, // CLAVE: El id real del foro para la API
+              type: 'forum',
+              category: 'foro',
+              instanceId: mod.instance,
               description: mod.description || '',
               url: mod.url || '',
               fileUrl: null,
             };
           }
 
-          // Fallback para los tests por ahora
           return {
             id: mod.id,
             name: mod.name,
@@ -139,51 +170,11 @@ export class CoursesService {
         id: section.id,
         name: section.name,
         summary: section.summary || '',
-        modules: contenidos,
+        modules,
       };
     });
+
+    await this.cache.set(cacheKey, sections, CoursesService.CONTENTS_TTL_MS);
+    return sections;
   }
 }
-//     // 2. Definimos los recursos permitidos según tu regla
-//     const modulosPermitidos = ['label', 'resource', 'quiz', 'book', 'lesson', 'glossary', 'assign', 'page'];
-
-//     // 3. Limpiamos y clasificamos la data
-//     const seccionesLimpias = data.map((section: any) => {
-      
-//       // Filtramos solo los módulos que nos interesan
-//       const modulosFiltrados = section.modules.filter((mod: any) => 
-//         modulosPermitidos.includes(mod.modname)
-//       );
-
-//       // Los mapeamos para que el Frontend los consuma fácil
-//       const contenidos = modulosFiltrados.map((mod: any) => {
-        
-//         // Clasificamos el tipo para el Frontend (Didáctico, Tarea o Test)
-//         let category = 'contenido_didactico';
-//         if (mod.modname === 'assign') category = 'tarea';
-//         if (mod.modname === 'quiz') category = 'test';
-
-//         return {
-//           id: mod.id,
-//           name: mod.name,
-//           type: mod.modname, // label, resource, quiz, etc.
-//           category: category, 
-//           description: mod.description || '', // Acá suelen venir los textos y multimedia (imágenes/audios embebidos)
-//           url: mod.url || '', // La URL directa al recurso si hace falta
-//           // Si es un archivo (como un PDF), Moodle lo manda adentro de 'contents'
-//           fileUrl: mod.contents && mod.contents.length > 0 ? mod.contents[0].fileurl : null,
-//         };
-//       });
-
-//       return {
-//         id: section.id,
-//         name: section.name, // Ej: "Unidad 1" o "Tema 1"
-//         summary: section.summary || '',
-//         modules: contenidos,
-//       };
-//     });
-
-//     return seccionesLimpias;
-//   }
-// }
-

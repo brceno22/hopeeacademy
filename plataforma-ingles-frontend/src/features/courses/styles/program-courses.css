@@ -1,41 +1,92 @@
-/* Animación de entrada suave */
-.fade-in-page {
-  animation: fadeIn 0.4s ease-out;
+/* Programa — jerarquía con badges y progreso (paleta Hopee) */
+
+.program-hero {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
 }
 
-/* Grillas para las tarjetas */
+.program-hero__desc {
+  color: var(--text-muted);
+  margin: 0;
+  max-width: 640px;
+  line-height: 1.5;
+}
+
+.program-level-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(0, 113, 188, 0.08);
+  border: 1px solid rgba(0, 113, 188, 0.18);
+  color: var(--primary-color);
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
 .program-class-grid,
 .courses-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 24px;
-  margin-top: 20px;
+  gap: 20px;
+  margin-top: 16px;
 }
 
-/* Tarjetas de clases y cursos */
 .program-class-card {
   background: var(--bg-color);
   border: 1px solid var(--border-color);
   border-radius: 16px;
-  padding: 24px;
+  padding: 22px;
   cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   display: flex;
   flex-direction: column;
+  gap: 10px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02);
+  text-align: left;
 }
 
 .program-class-card:hover {
-  transform: translateY(-5px);
+  transform: translateY(-4px);
   box-shadow: 0 12px 24px rgba(0, 113, 188, 0.08);
   border-color: var(--primary-color);
+}
+
+.program-class-card:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
+}
+
+.program-card__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.program-card__icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.4rem;
+  background: #E3F2FD;
+  color: var(--primary-color);
 }
 
 .program-class-card h4 {
   color: var(--text-main);
   font-family: var(--font-titles);
-  font-size: 1.25rem;
-  margin: 12px 0 8px;
+  font-size: 1.2rem;
+  margin: 0;
+  line-height: 1.3;
 }
 
 .program-class-card p,
@@ -46,7 +97,18 @@
   line-height: 1.4;
 }
 
-/* Botón de volver */
+.program-card__progress {
+  margin-top: 4px;
+}
+
+.program-card__progress-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
 .btn-back {
   background: transparent;
   border: 1px solid var(--border-color);
@@ -69,7 +131,6 @@
   border-color: var(--primary-color);
 }
 
-/* Textos generales */
 .page-description {
   color: var(--text-muted);
   font-size: 1rem;
@@ -79,14 +140,14 @@
 .section-title {
   color: var(--primary-color);
   font-family: var(--font-titles);
-  margin-top: 32px;
-  margin-bottom: 16px;
+  margin-top: 28px;
+  margin-bottom: 8px;
+  font-size: 1.15rem;
 }
 
-/* Link de acción adentro de la tarjeta */
 .card-action-link {
   margin-top: auto;
-  padding-top: 16px;
+  padding-top: 8px;
   color: var(--secondary-color);
   font-weight: 600;
   font-size: 0.9rem;
@@ -97,5 +158,22 @@
 }
 
 .program-class-card:hover .card-action-link {
-  gap: 8px; /* Hace que la flechita se mueva a la derecha al hacer hover */
+  gap: 8px;
+}
+
+.resource-type-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.resource-type-chip {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 3px 8px;
 }

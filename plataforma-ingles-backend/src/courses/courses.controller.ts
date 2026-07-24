@@ -11,11 +11,12 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AdminGuard } from '../auth/admin.guard';
-import { CoursesService } from './courses.service';
+import { extractOptionalBearerToken } from '../auth/auth-token.util';
 import { CoursesCatalogService } from './courses-catalog.service';
+import { CoursesService } from './courses.service';
+import { AssignCourseToFolderDto } from './dto/assign-course.dto';
 import { CreateCourseFolderDto } from './dto/create-course-folder.dto';
 import { UpdateCourseFolderDto } from './dto/update-course-folder.dto';
-import { AssignCourseToFolderDto } from './dto/assign-course.dto';
 
 @Controller('courses')
 export class CoursesController {
@@ -24,11 +25,10 @@ export class CoursesController {
     private readonly catalogService: CoursesCatalogService,
   ) {}
 
-  /** Listado plano (como antes). Token opcional: Bearer del alumno. */
+  /** Listado plano. Token opcional: Bearer del alumno. */
   @Get()
   findAll(@Headers('authorization') auth?: string) {
-    const token = auth?.replace(/^Bearer\s+/i, '');
-    return this.coursesService.findAllForUser(token || undefined);
+    return this.coursesService.findAllForUser(extractOptionalBearerToken(auth));
   }
 
   /**
@@ -37,11 +37,8 @@ export class CoursesController {
    */
   @Get('tree')
   getTree(@Headers('authorization') auth?: string) {
-    const token = auth?.replace(/^Bearer\s+/i, '');
-    return this.catalogService.getTreeForStudent(token || undefined);
+    return this.catalogService.getTreeForStudent(extractOptionalBearerToken(auth));
   }
-
-  // ── Admin: solo ordenar cursos que ya existen en Moodle ─────
 
   @UseGuards(AdminGuard)
   @Get('admin/tree')

@@ -1,95 +1,89 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import api from '../../core/api/axios';
-import "./home-page.css";
+import { useAuth } from '@/core/context/AuthContext';
+import { useMicrolearningToday } from '@/core/hooks/useMicrolearningToday';
+import './home-page.css';
 
 export const HomePage: React.FC = () => {
   const navigate = useNavigate();
-  const [streak, setStreak] = useState(0);
-  const fullName = localStorage.getItem('fullName') || 'Estudiante';
-  const firstName = fullName.split(' ')[0];
-
-  useEffect(() => {
-    const fetchHomeData = async () => {
-      try {
-        const res = await api.get('/microlearning/today');
-        setStreak(res.data.currentStreak);
-      } catch (e) {
-        console.error('Error cargando datos de inicio:', e);
-      }
-    };
-    fetchHomeData();
-  }, []);
+  const { user } = useAuth();
+  const { data } = useMicrolearningToday();
+  const streak = data?.currentStreak ?? 0;
+  const firstName = (user?.fullName || 'Student').split(' ')[0];
 
   return (
     <div className="home-container">
-      {/* 1. BANNER BIENVENIDA */}
       <section className="welcome-banner">
         <div className="welcome-text">
           <h1>Welcome back, {firstName}! 👋</h1>
-          <p>Listo para dominar el inglés hoy? Tenés un mundo de posibilidades esperándote.</p>
+          <p>Ready to master English today? A world of possibilities is waiting for you.</p>
         </div>
         <div className="welcome-badge">
           <span className="flag-bubble">🇬🇧</span>
         </div>
       </section>
 
-      {/* 2. GRILLA DE CONTENIDO */}
       <div className="home-grid">
-        
-        {/* TARJETA DE RACHA / ACCIÓN RÁPIDA */}
         <div className="home-card action-card">
           <div className="card-header-icon orange-bg">⚡</div>
-          <h3>Tu racha diaria</h3>
+          <h3>Your daily streak</h3>
           <p className="streak-counter">
-            🔥 <span>{streak} {streak === 1 ? 'día' : 'días'} seguidos</span>
+            🔥{' '}
+            <span>
+              {streak} {streak === 1 ? 'day' : 'days'} in a row
+            </span>
           </p>
-          <p className="card-desc">No pierdas el impulso. Completá el desafío diario de microlearning en 5 minutos.</p>
-          <button 
-            type="button" 
+          <p className="card-desc">
+            Keep the momentum going. Complete today&apos;s microlearning challenge in about 5 minutes.
+          </p>
+          <button
+            type="button"
             className="btn-card primary"
             onClick={() => navigate('/app/microlearning')}
           >
-            Practicar ahora
+            Practice now
           </button>
         </div>
 
-        {/* TARJETA DE MIS CURSOS */}
         <div className="home-card">
           <div className="card-header-icon blue-bg">📚</div>
-          <h3>Mis Cursos activos</h3>
-          <p className="card-desc">Accedé directamente a tus clases, materiales interactivos y contenidos de Moodle.</p>
-          <button 
-            type="button" 
+          <h3>My active courses</h3>
+          <p className="card-desc">
+            Jump straight into your classes, interactive materials, and Moodle content.
+          </p>
+          <button
+            type="button"
             className="btn-card secondary"
             onClick={() => navigate('/app/cursos')}
           >
-            Ir a mis cursos
+            Go to my courses
           </button>
         </div>
 
-        {/* TARJETA DEL FORO DE LA COMUNIDAD */}
         <div className="home-card">
           <div className="card-header-icon purple-bg">💬</div>
-          <h3>Foro de la comunidad</h3>
-          <p className="card-desc">¿Tenés dudas con alguna regla gramatical o vocabulario? Preguntale a tus compañeros.</p>
-          <button 
-            type="button" 
+          <h3>Community forum</h3>
+          <p className="card-desc">
+            Stuck on a grammar rule or vocabulary? Ask your classmates.
+          </p>
+          <button
+            type="button"
             className="btn-card secondary"
             onClick={() => navigate('/app/foro')}
           >
-            Entrar al foro
+            Enter the forum
           </button>
         </div>
-
       </div>
 
-      {/* 3. SECCIÓN DE RECOMENDACIÓN O TIPS */}
       <section className="tip-of-the-day">
         <div className="tip-icon">💡</div>
         <div className="tip-content">
-          <h4>Tip de estudio del día</h4>
-          <p>"La constancia le gana al talento. Es preferible estudiar 10 minutos todos los días a meter una maratón de 4 horas el fin de semana. ¡Hacé valer tu microlearning!"</p>
+          <h4>Study tip of the day</h4>
+          <p>
+            &quot;Consistency beats talent. Ten minutes every day beats a four-hour marathon on the
+            weekend. Make your microlearning count!&quot;
+          </p>
         </div>
       </section>
     </div>

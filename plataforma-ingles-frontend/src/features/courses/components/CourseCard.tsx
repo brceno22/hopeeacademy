@@ -35,7 +35,7 @@ export const CourseCard: React.FC<CourseProps> = ({ id, name, code, description 
         className="btn-card primary"
         onClick={() => navigate(`/app/cursos/${id}`)}
       >
-        Entrar al curso
+        Enter course
       </button>
     </div>
   );

@@ -1,12 +1,28 @@
-import { Controller, Get, Post, Put, Delete, Param, Body, ParseIntPipe, UseGuards } from '@nestjs/common';
-import { ExamsService } from './exams.service';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseIntPipe,
+  Post,
+  Put,
+  UseGuards,
+} from '@nestjs/common';
 import { AdminGuard } from '../auth/admin.guard';
+import { CreateExamDto, SubmitExamDto, UpdateExamDto } from './dto/exam.dto';
+import { ExamsService } from './exams.service';
 
 @Controller('exams')
 export class ExamsController {
   constructor(private readonly examsService: ExamsService) {}
 
-  // ── RUTAS PÚBLICAS (alumnos) ──────────────────────────────
+  // Admin list must be registered before :id routes
+  @UseGuards(AdminGuard)
+  @Get()
+  getAllExams() {
+    return this.examsService.getAllExams();
+  }
 
   @Get('course/:courseId')
   getExamsByCourse(@Param('courseId', ParseIntPipe) courseId: number) {
@@ -21,9 +37,13 @@ export class ExamsController {
   @Post(':id/submit')
   submitAttempt(
     @Param('id', ParseIntPipe) examId: number,
-    @Body() body: { userId: number; answers: Record<number, number> },
+    @Body() body: SubmitExamDto,
   ) {
-    return this.examsService.submitAttempt(examId, body.userId, body.answers);
+    const answers: Record<number, number> = {};
+    for (const [key, value] of Object.entries(body.answers || {})) {
+      answers[Number(key)] = Number(value);
+    }
+    return this.examsService.submitAttempt(examId, body.userId, answers);
   }
 
   @Get(':id/attempts/:userId')
@@ -34,17 +54,15 @@ export class ExamsController {
     return this.examsService.getAttemptsByUser(examId, userId);
   }
 
-  // ── RUTAS ADMIN (protegidas) ──────────────────────────────
-
   @UseGuards(AdminGuard)
   @Post()
-  createExam(@Body() body: any) {
+  createExam(@Body() body: CreateExamDto) {
     return this.examsService.createExam(body);
   }
 
   @UseGuards(AdminGuard)
   @Put(':id')
-  updateExam(@Param('id', ParseIntPipe) id: number, @Body() body: any) {
+  updateExam(@Param('id', ParseIntPipe) id: number, @Body() body: UpdateExamDto) {
     return this.examsService.updateExam(id, body);
   }
 
@@ -52,12 +70,5 @@ export class ExamsController {
   @Delete(':id')
   deleteExam(@Param('id', ParseIntPipe) id: number) {
     return this.examsService.deleteExam(id);
-  }
-
-  // Traer todos los exámenes (para el panel admin)
-  @UseGuards(AdminGuard)
-  @Get()
-  getAllExams() {
-    return this.examsService.getAllExams();
   }
 }

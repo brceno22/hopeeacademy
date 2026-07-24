@@ -1,12 +1,13 @@
 import { Module } from '@nestjs/common';
+import { HttpModule } from '@nestjs/axios';
 import { MoodleService } from './moodle.service';
-import { ConfigModule } from '@nestjs/config/dist/config.module';
-import { HttpModule } from '@nestjs/axios/dist/http.module';
 
 @Module({
   imports: [
-    HttpModule,
-    ConfigModule,
+    HttpModule.register({
+      timeout: 30_000,
+      maxRedirects: 5,
+    }),
   ],
   providers: [MoodleService],
   exports: [MoodleService],

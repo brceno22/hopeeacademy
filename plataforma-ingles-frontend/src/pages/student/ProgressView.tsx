@@ -22,11 +22,11 @@ export const ProgressView: React.FC = () => {
   useEffect(() => {
     const fetchProgress = async () => {
       try {
-        // Le pegamos al endpoint global que armaste recién en el backend
+        // Hit the global progress endpoint
         const response = await api.get('/progress/global');
         setProgress(response.data);
       } catch (err) {
-        setError('Error al cargar tu progreso.');
+        setError('Failed to load your progress.');
       } finally {
         setLoading(false);
       }
@@ -34,25 +34,25 @@ export const ProgressView: React.FC = () => {
     fetchProgress();
   }, []);
 
-  if (loading) return <div style={{ padding: '40px', textAlign: 'center', fontSize: '18px' }}>Cargando tus estadísticas...</div>;
+  if (loading) return <div style={{ padding: '40px', textAlign: 'center', fontSize: '18px' }}>Loading your stats...</div>;
   if (error) return <div style={{ padding: '40px', color: 'red', textAlign: 'center' }}>{error}</div>;
   if (!progress) return null;
 
   return (
     <div style={{ padding: '40px', maxWidth: '900px', margin: '0 auto', fontFamily: 'system-ui', width: '100%' }}>
-      <h1 style={{ marginBottom: '30px', color: '#333', fontSize: '28px' }}>Mi Progreso Académico</h1>
+      <h1 style={{ marginBottom: '30px', color: '#333', fontSize: '28px' }}>My Academic Progress</h1>
 
-      {/* Tarjeta Global Principal */}
+      {/* Main overall card */}
       <div style={{ background: '#fff', padding: '30px', borderRadius: '12px', border: '1px solid #e0e0e0', marginBottom: '40px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-          <h2 style={{ margin: 0, color: '#0056b3', fontSize: '22px' }}>Progreso General</h2>
+          <h2 style={{ margin: 0, color: '#0056b3', fontSize: '22px' }}>Overall Progress</h2>
           <span style={{ fontSize: '32px', fontWeight: 'bold', color: '#0056b3' }}>{progress.globalPercentage}%</span>
         </div>
         <p style={{ color: '#666', marginBottom: '20px', fontSize: '16px' }}>
-          Llevás completadas <strong>{progress.completedCourses}</strong> de <strong>{progress.totalCourses}</strong> clases.
+          You've completed <strong>{progress.completedCourses}</strong> of <strong>{progress.totalCourses}</strong> classes.
         </p>
         
-        {/* Barra gruesa global */}
+        {/* Overall progress bar */}
         <div style={{ width: '100%', height: '24px', background: '#e9ecef', borderRadius: '12px', overflow: 'hidden' }}>
           <div 
             style={{ 
@@ -65,10 +65,10 @@ export const ProgressView: React.FC = () => {
         </div>
       </div>
 
-      {/* Lista detallada por Clase */}
-      <h3 style={{ marginBottom: '20px', color: '#444', fontSize: '20px' }}>Detalle por Clase</h3>
+      {/* Per-class breakdown */}
+      <h3 style={{ marginBottom: '20px', color: '#444', fontSize: '20px' }}>Breakdown by Class</h3>
       {progress.details.length === 0 ? (
-        <p style={{ color: '#666' }}>Todavía no estás inscripto en ninguna clase.</p>
+        <p style={{ color: '#666' }}>You aren't enrolled in any classes yet.</p>
       ) : (
         <div style={{ display: 'grid', gap: '15px' }}>
           {progress.details.map((course) => (
@@ -80,7 +80,7 @@ export const ProgressView: React.FC = () => {
                 </span>
               </div>
               
-              {/* Barra finita por curso */}
+              {/* Per-course progress bar */}
               <div style={{ width: '100%', height: '8px', background: '#e9ecef', borderRadius: '4px', overflow: 'hidden' }}>
                 <div 
                   style={{ 

@@ -1,135 +1,54 @@
-import { Controller, Get, Query, Res } from '@nestjs/common';
+import {
+  BadRequestException,
+  Controller,
+  Get,
+  Query,
+  Res,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
+import { ConfigService } from '@nestjs/config';
 import type { Response } from 'express';
 import { firstValueFrom } from 'rxjs';
-import { ConfigService } from '@nestjs/config';
 
 @Controller('files')
 export class FilesController {
-  private sessionCookies: string = '';
-  private cookiesExpiry: number = 0;
-
   constructor(
     private readonly httpService: HttpService,
     private readonly configService: ConfigService,
   ) {}
 
-  private async getMoodleSession(): Promise<string> {
-    if (this.sessionCookies && Date.now() < this.cookiesExpiry) {
-      return this.sessionCookies;
+  private getMoodleOrigin(): string {
+    const moodleUrl = this.configService.get<string>('MOODLE_URL') || '';
+    if (!moodleUrl) {
+      throw new BadRequestException('MOODLE_URL no está configurada');
+    }
+    try {
+      const cleaned = moodleUrl.split('/webservice')[0].replace(/\/$/, '');
+      return new URL(cleaned).origin;
+    } catch {
+      throw new BadRequestException('MOODLE_URL inválida');
+    }
+  }
+
+  private assertAllowedMoodleUrl(fileUrl: string, moodleOrigin: string): URL {
+    let parsed: URL;
+    try {
+      parsed = new URL(fileUrl);
+    } catch {
+      throw new BadRequestException('URL de archivo inválida');
     }
 
-    const moodleBase = 'http://127.0.0.1:8080';
-    const adminUser = this.configService.get<string>('MOODLE_ADMIN_USER') ?? 'admin';
-    const adminPass = this.configService.get<string>('MOODLE_ADMIN_PASS') ?? 'admin';
-
-    // 1. Obtener logintoken
-    const loginPageRes = await firstValueFrom(
-      this.httpService.get(`${moodleBase}/login/index.php`, {
-        maxRedirects: 5,
-        headers: { 'User-Agent': 'Mozilla/5.0' },
-      })
-    );
-
-    const loginTokenMatch = loginPageRes.data.match(/name="logintoken" value="([^"]+)"/);
-    const loginToken = loginTokenMatch ? loginTokenMatch[1] : '';
-    const initialCookies = (loginPageRes.headers['set-cookie'] as string[] || [])
-      .map(c => c.split(';')[0]).join('; ');
-
-    console.log('🔑 loginToken:', loginToken ? 'OK' : 'NO encontrado');
-
-    // 2. POST login
-    const params = new URLSearchParams({
-      username: adminUser,
-      password: adminPass,
-      logintoken: loginToken,
-      anchor: '',
-    });
-
-    const loginRes = await firstValueFrom(
-      this.httpService.post(`${moodleBase}/login/index.php`, params.toString(), {
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'Cookie': initialCookies,
-          'User-Agent': 'Mozilla/5.0',
-          'Referer': `${moodleBase}/login/index.php`,
-        },
-        maxRedirects: 0,
-        validateStatus: (status) => status < 500,
-      })
-    );
-
-    const postCookies = (loginRes.headers['set-cookie'] as string[] || [])
-      .map(c => c.split(';')[0]).join('; ');
-    
-    // Combinamos cookies iniciales + post
-    const cookieMap: Record<string, string> = {};
-    [...initialCookies.split('; '), ...postCookies.split('; ')].forEach(c => {
-      const eqIdx = c.indexOf('=');
-      if (eqIdx > 0) {
-        const k = c.substring(0, eqIdx).trim();
-        const v = c.substring(eqIdx + 1).trim();
-        if (k && v) cookieMap[k] = v;
-      }
-    });
-    let currentCookies = Object.entries(cookieMap).map(([k, v]) => `${k}=${v}`).join('; ');
-
-    console.log('📄 Login status:', loginRes.status, '| location:', loginRes.headers['location']);
-
-    // 3. Seguir TODOS los redirects manualmente
-    let location = loginRes.headers['location'] as string;
-    let redirectCount = 0;
-    
-    while (location && redirectCount < 5) {
-      const fullUrl = location.startsWith('http') ? location : `${moodleBase}${location}`;
-      console.log(`🔀 Redirect ${redirectCount + 1}:`, fullUrl);
-
-      const redirectRes = await firstValueFrom(
-        this.httpService.get(fullUrl, {
-          headers: { 
-            'Cookie': currentCookies,
-            'User-Agent': 'Mozilla/5.0',
-          },
-          maxRedirects: 0,
-          validateStatus: (status) => status < 500,
-        })
-      );
-
-      const newCookies = (redirectRes.headers['set-cookie'] as string[] || [])
-        .map(c => c.split(';')[0]);
-      
-      newCookies.forEach(c => {
-        const eqIdx = c.indexOf('=');
-        if (eqIdx > 0) {
-          const k = c.substring(0, eqIdx).trim();
-          const v = c.substring(eqIdx + 1).trim();
-          if (k && v) cookieMap[k] = v;
-        }
-      });
-      currentCookies = Object.entries(cookieMap).map(([k, v]) => `${k}=${v}`).join('; ');
-
-      location = redirectRes.headers['location'] as string;
-      redirectCount++;
-      
-      console.log(`📄 Redirect status: ${redirectRes.status} | next: ${location || 'ninguno'}`);
+    if (parsed.origin !== moodleOrigin) {
+      throw new BadRequestException('Solo se permiten archivos del host de Moodle configurado');
     }
 
-    console.log('🍪 Cookies finales:', currentCookies);
+    const path = parsed.pathname.toLowerCase();
+    if (!path.includes('pluginfile.php')) {
+      throw new BadRequestException('Solo se permiten URLs de pluginfile de Moodle');
+    }
 
-    // 4. Verificar login
-    const checkRes = await firstValueFrom(
-      this.httpService.get(`${moodleBase}/my/`, {
-        headers: { 'Cookie': currentCookies, 'User-Agent': 'Mozilla/5.0' },
-        maxRedirects: 5,
-      })
-    );
-
-    const isLoggedIn = !checkRes.data.includes('name="logintoken"');
-    console.log('✅ Login exitoso:', isLoggedIn);
-
-    this.sessionCookies = currentCookies;
-    this.cookiesExpiry = Date.now() + 60 * 60 * 1000;
-    return this.sessionCookies;
+    return parsed;
   }
 
   @Get('proxy')
@@ -138,38 +57,76 @@ export class FilesController {
     @Query('token') token: string,
     @Res() res: Response,
   ) {
+    if (!url?.trim()) {
+      throw new BadRequestException('Query param "url" es requerido');
+    }
+    if (!token?.trim()) {
+      throw new UnauthorizedException('Query param "token" es requerido');
+    }
+
+    const moodleOrigin = this.getMoodleOrigin();
+    this.assertAllowedMoodleUrl(url, moodleOrigin);
+
+    // Prefer webservice/pluginfile.php for course files; user icons work on
+    // plain pluginfile.php + token (webservice path 404s / access denied).
+    let fileUrl = url
+      .replace(/[?&]forcedownload=1/g, '')
+      .replace(/([?&])token=[^&]*/g, '')
+      .replace(/[?&]$/, '');
+
+    const isUserIcon = /\/user\/icon\//i.test(fileUrl);
+    if (
+      !isUserIcon &&
+      fileUrl.includes('pluginfile.php') &&
+      !fileUrl.includes('/webservice/')
+    ) {
+      fileUrl = fileUrl.replace('/pluginfile.php', '/webservice/pluginfile.php');
+    }
+
+    const separator = fileUrl.includes('?') ? '&' : '?';
+    fileUrl = `${fileUrl}${separator}token=${encodeURIComponent(token)}`;
+
     try {
-      let fileUrl = url
-        .replace('webservice/pluginfile.php', 'pluginfile.php')
-        .replace(/[?&]forcedownload=1/g, '');
-
-      console.log('📄 Proxy fetching:', fileUrl);
-
-      const cookies = await this.getMoodleSession();
-
       const fileRes = await firstValueFrom(
-        this.httpService.get(fileUrl, {
-          headers: { Cookie: cookies },
+        this.httpService.get<ArrayBuffer>(fileUrl, {
           responseType: 'arraybuffer',
           maxRedirects: 5,
-        })
+          timeout: 30_000,
+          validateStatus: (status) => status < 500,
+        }),
       );
 
-      const contentType = (fileRes.headers['content-type'] as string) || 'application/octet-stream';
+      if (fileRes.status === 401 || fileRes.status === 403) {
+        res.status(401).json({ message: 'Token inválido o sin permiso para el archivo' });
+        return;
+      }
 
-      if (contentType.includes('text/html')) {
-        this.sessionCookies = '';
-        res.status(401).json({ error: 'Sesión expirada' });
+      if (fileRes.status >= 400) {
+        res.status(502).json({ message: 'Moodle no pudo servir el archivo' });
+        return;
+      }
+
+      const contentType =
+        (fileRes.headers['content-type'] as string) || 'application/octet-stream';
+      const body = Buffer.from(fileRes.data);
+
+      if (contentType.includes('text/html') || contentType.includes('application/json')) {
+        res.status(401).json({ message: 'Sesión inválida o archivo no accesible' });
+        return;
+      }
+
+      // Moodle sometimes returns JSON error with a misleading content-type
+      if (body.length < 512 && body.toString('utf8').trimStart().startsWith('{')) {
+        res.status(401).json({ message: 'Sesión inválida o archivo no accesible' });
         return;
       }
 
       res.setHeader('Content-Type', contentType);
-      res.setHeader('Cache-Control', 'public, max-age=3600');
-      res.send(Buffer.from(fileRes.data as ArrayBuffer));
-
-    } catch (error: any) {
-      console.error('❌ Error en proxy:', error.message);
-      res.status(500).json({ error: 'No se pudo cargar el archivo' });
+      res.setHeader('Cache-Control', 'private, max-age=3600');
+      res.send(body);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Error desconocido';
+      res.status(502).json({ message: 'No se pudo cargar el archivo', detail: message });
     }
   }
 }

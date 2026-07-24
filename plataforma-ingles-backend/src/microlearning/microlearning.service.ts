@@ -1,10 +1,11 @@
-import { Injectable, UnauthorizedException, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { MicrolearningContent } from './microlearning-content.entity';
 import { UserMicrolearningHistory } from './user-microlearning-history.entity';
 import { UserStreak } from './user-streak.entity';
 import { MoodleService } from '../moodle/moodle.service';
+import { CreateMicrolearningDto } from './dto/microlearning.dto';
 
 @Injectable()
 export class MicrolearningService {
@@ -18,29 +19,18 @@ export class MicrolearningService {
     private moodleService: MoodleService,
   ) {}
 
-  private async getUserIdFromToken(token: string): Promise<number> {
-    try {
-      const info = await this.moodleService.request('core_webservice_get_site_info', {}, token);
-      if (!info || !info.userid) throw new Error();
-      return info.userid;
-    } catch {
-      throw new UnauthorizedException('Token de Moodle inválido');
-    }
-  }
-
   // Helper para obtener fecha local en formato YYYY-MM-DD
   private getLocalDateString(date: Date = new Date()): string {
     const offset = date.getTimezoneOffset() * 60000;
     return new Date(date.getTime() - offset).toISOString().split('T')[0];
   }
 
-  async createBulkContent(contents: any[]) {
-    return await this.contentRepo.save(contents);
+  async createBulkContent(contents: CreateMicrolearningDto[]) {
+    return this.contentRepo.save(contents);
   }
-  
 
   async getTodayContent(token: string) {
-    const userId = await this.getUserIdFromToken(token);
+    const userId = await this.moodleService.getUserIdFromToken(token);
     const todayStr = this.getLocalDateString(); // YYYY-MM-DD
 
     // 1. Definimos el inicio y fin del día de hoy para buscar en el historial
@@ -122,7 +112,7 @@ export class MicrolearningService {
   }
 
   async markAsCompleted(token: string, contentId: number) {
-    const userId = await this.getUserIdFromToken(token);
+    const userId = await this.moodleService.getUserIdFromToken(token);
     const todayStr = this.getLocalDateString();
 
     // Verificamos si ya existe (idempotente)
@@ -166,9 +156,8 @@ export class MicrolearningService {
     return { success: true, currentStreak: streak.currentStreak };
   }
 
-  async createAdminContent(data: Partial<MicrolearningContent>) {
+  async createAdminContent(data: CreateMicrolearningDto) {
     const newContent = this.contentRepo.create(data);
-    return await this.contentRepo.save(newContent);
+    return this.contentRepo.save(newContent);
   }
-  
 }

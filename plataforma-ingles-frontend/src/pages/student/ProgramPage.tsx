@@ -1,67 +1,89 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import api from '../../core/api/axios';
-import { useStudentLayout } from '../../layouts/StudentLayoutContext';
-import type { CourseFolderNode, MoodleCourse } from '../../core/types/courses-catalog';
-import { normalizeTree, findProgramRoot } from '@/features/courses/utils/courseTree';
+import { useQuery } from '@tanstack/react-query';
+import api from '@/core/api/axios';
+import { useCoursesTree } from '@/core/hooks/useCoursesTree';
+import type { CourseFolderNode, MoodleCourse } from '@/core/types/courses-catalog';
+import { EmptyState, SkeletonGrid } from '@/core/ui/EmptyState';
+import {
+  progressLabel,
+  progressStatus,
+  resourceIcon,
+} from '@/core/utils/format';
+import { findProgramRoot } from '@/features/courses/utils/courseTree';
 import '@/features/courses/styles/program-courses.css';
+import { useStudentLayout } from '@/layouts/StudentLayoutContext';
+
+interface ProgressDetail {
+  courseId: number;
+  name?: string;
+  percentage: number;
+}
 
 export const ProgramPage: React.FC = () => {
   const navigate = useNavigate();
   const { setHeaderTitle, setHeaderTabs, activeTabId } = useStudentLayout();
-  const [tree, setTree] = useState<CourseFolderNode[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const { data: tree = [], isLoading, isError, refetch } = useCoursesTree();
 
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const res = await api.get('/courses/tree');
-        setTree(normalizeTree(res.data));
-      } catch {
-        setError('No se pudo cargar tu programa.');
-      } finally {
-        setLoading(false);
+  const { data: progressMap = {} } = useQuery({
+    queryKey: ['progress', 'global-map'],
+    queryFn: async () => {
+      const res = await api.get<{ details?: ProgressDetail[] }>('/progress/global');
+      const map: Record<number, number> = {};
+      for (const d of res.data.details || []) {
+        map[d.courseId] = d.percentage;
       }
-    };
-    load();
-  }, []);
+      return map;
+    },
+    staleTime: 60_000,
+  });
 
   const programRoot = useMemo(() => findProgramRoot(tree), [tree]);
   const levels = programRoot?.children ?? [];
 
   useEffect(() => {
-    setHeaderTitle('Mi programa');
+    setHeaderTitle('My program');
     if (levels.length > 0) {
       setHeaderTabs(
-        levels.map((l:CourseFolderNode) => ({ id: String(l.id), label: l.name })),
+        levels.map((l: CourseFolderNode) => ({ id: String(l.id), label: l.name })),
         String(levels[0].id),
       );
     }
   }, [levels, setHeaderTitle, setHeaderTabs]);
 
-  const activeLevel = levels.find((l:CourseFolderNode) => String(l.id) === activeTabId) ?? levels[0];
+  const activeLevel =
+    levels.find((l: CourseFolderNode) => String(l.id) === activeTabId) ?? levels[0];
 
-  if (loading) return <p className="page-description">Cargando tu programa...</p>;
-  if (error) return <p style={{ color: '#ef4444' }}>{error}</p>;
+  if (isLoading) {
+    return (
+      <div className="fade-in-page">
+        <div className="skeleton skeleton-line" style={{ width: '55%', height: 18, marginBottom: 24 }} />
+        <SkeletonGrid count={4} />
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <EmptyState
+        icon="🎓"
+        title="Could not load your program"
+        description="There was a problem connecting to the server."
+        actionLabel="Try again"
+        onAction={() => void refetch()}
+      />
+    );
+  }
 
   if (!programRoot || levels.length === 0) {
     return (
-      <div className="home-card fade-in-page">
-        <h3>Sin niveles configurados</h3>
-        <p className="page-description">
-          Tu academia aún no organizó los niveles (B1, B2…). Mientras tanto, podés ver todos tus cursos en
-          la sección <strong>Mis cursos</strong>.
-        </p>
-        <button
-          type="button"
-          onClick={() => navigate('/app/cursos')}
-          className="btn-card primary"
-          style={{ maxWidth: '200px' }}
-        >
-          Ir a mis cursos
-        </button>
-      </div>
+      <EmptyState
+        icon="🗂️"
+        title="No levels configured"
+        description="Your academy hasn’t set up levels yet (B1, B2…). Meanwhile, you can view all your courses under My courses."
+        actionLabel="Go to my courses"
+        onAction={() => navigate('/app/cursos')}
+      />
     );
   }
 
@@ -70,30 +92,53 @@ export const ProgramPage: React.FC = () => {
 
   return (
     <div className="fade-in-page">
-      <p className="page-description">
-        Nivel <strong>{activeLevel?.name}</strong> — elegí una clase o un curso para continuar.
-      </p>
+      <div className="program-hero">
+        <p className="program-hero__desc">
+          Level <strong>{activeLevel?.name}</strong> — pick a class or course to continue your
+          path.
+        </p>
+        <span className="program-level-tag">📚 Module {activeLevel?.name}</span>
+      </div>
 
       {classes.length > 0 && (
         <>
-          <h3 className="section-title">Clases del nivel</h3>
+          <h3 className="section-title">Classes in this level</h3>
           <div className="program-class-grid">
             {classes.map((cls: CourseFolderNode) => {
               const courseCount = (cls.courses?.length ?? 0) + countCoursesInSubtree(cls);
+              const avg = averageProgress(cls, progressMap);
+              const status = progressStatus(avg);
               return (
-                <div
+                <button
                   key={cls.id}
+                  type="button"
                   className="program-class-card"
                   onClick={() => navigate(`/app/programa/clase/${cls.id}`)}
-                  onKeyDown={(e) => e.key === 'Enter' && navigate(`/app/programa/clase/${cls.id}`)}
-                  role="button"
-                  tabIndex={0}
                 >
-                  <div style={{ fontSize: '2rem' }}>📖</div>
+                  <div className="program-card__head">
+                    <div className="program-card__icon">📖</div>
+                    <span className={`status-pill ${status}`}>{progressLabel(status)}</span>
+                  </div>
                   <h4>{cls.name}</h4>
-                  <p>{courseCount} recurso(s) disponible(s)</p>
-                  <span className="card-action-link">Ver contenido →</span>
-                </div>
+                  <p>{courseCount} resource(s) available</p>
+                  {avg != null && (
+                    <div className="program-card__progress">
+                      <div className="program-card__progress-meta">
+                        <span>Progress</span>
+                        <span>{avg}%</span>
+                      </div>
+                      <div className="progress-bar-container">
+                        <div className="progress-bar-fill" style={{ width: `${avg}%` }} />
+                      </div>
+                    </div>
+                  )}
+                  <div className="resource-type-row">
+                    <span className="resource-type-chip">{resourceIcon('page')} Lessons</span>
+                    <span className="resource-type-chip">{resourceIcon('quiz')} Quizzes</span>
+                    <span className="resource-type-chip">{resourceIcon('forum')} Forums</span>
+                  </div>
+                  <span className="card-action-link">View content →</span>
+                </button>
               );
             })}
           </div>
@@ -102,19 +147,26 @@ export const ProgramPage: React.FC = () => {
 
       {coursesInLevel.length > 0 && (
         <>
-          <h3 className="section-title">Cursos del nivel</h3>
+          <h3 className="section-title">Courses in this level</h3>
           <div className="program-class-grid">
             {coursesInLevel.map((c: MoodleCourse) => (
-              <CourseTile key={c.id} course={c} onOpen={() => navigate(`/app/cursos/${c.id}`)} />
+              <CourseTile
+                key={c.id}
+                course={c}
+                percentage={progressMap[c.id]}
+                onOpen={() => navigate(`/app/cursos/${c.id}`)}
+              />
             ))}
           </div>
         </>
       )}
 
       {classes.length === 0 && coursesInLevel.length === 0 && (
-        <div className="home-card">
-          <p className="page-description" style={{ margin: 0 }}>Este nivel aún no tiene clases ni cursos asignados.</p>
-        </div>
+        <EmptyState
+          icon="📭"
+          title="Empty level"
+          description="This level doesn’t have any classes or courses assigned yet."
+        />
       )}
     </div>
   );
@@ -126,11 +178,48 @@ function countCoursesInSubtree(node: CourseFolderNode): number {
   return n;
 }
 
-const CourseTile: React.FC<{ course: MoodleCourse; onOpen: () => void }> = ({ course, onOpen }) => (
-  <div className="program-class-card" onClick={onOpen} role="button" tabIndex={0}>
-    <div style={{ fontSize: '2rem' }}>📘</div>
-    <h4>{course.name}</h4>
-    <span className="card-subtitle">{course.code}</span>
-    <span className="card-action-link">Entrar al curso →</span>
-  </div>
-);
+function collectCourseIds(node: CourseFolderNode): number[] {
+  const ids = (node.courses ?? []).map((c) => c.id);
+  for (const ch of node.children ?? []) ids.push(...collectCourseIds(ch));
+  return ids;
+}
+
+function averageProgress(
+  node: CourseFolderNode,
+  map: Record<number, number>,
+): number | null {
+  const ids = collectCourseIds(node);
+  const known = ids.map((id) => map[id]).filter((p) => typeof p === 'number');
+  if (known.length === 0) return null;
+  return Math.round(known.reduce((a, b) => a + b, 0) / known.length);
+}
+
+const CourseTile: React.FC<{
+  course: MoodleCourse;
+  percentage?: number;
+  onOpen: () => void;
+}> = ({ course, percentage, onOpen }) => {
+  const status = progressStatus(percentage);
+  return (
+    <button type="button" className="program-class-card" onClick={onOpen}>
+      <div className="program-card__head">
+        <div className="program-card__icon">{resourceIcon('course')}</div>
+        <span className={`status-pill ${status}`}>{progressLabel(status)}</span>
+      </div>
+      <h4>{course.name}</h4>
+      <span className="card-subtitle">{course.code}</span>
+      {percentage != null && (
+        <div className="program-card__progress">
+          <div className="program-card__progress-meta">
+            <span>Completed</span>
+            <span>{percentage}%</span>
+          </div>
+          <div className="progress-bar-container">
+            <div className="progress-bar-fill" style={{ width: `${percentage}%` }} />
+          </div>
+        </div>
+      )}
+      <span className="card-action-link">Enter course →</span>
+    </button>
+  );
+};

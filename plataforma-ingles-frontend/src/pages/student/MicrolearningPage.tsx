@@ -1,14 +1,14 @@
 import React from 'react';
 import { MicrolearningWidget } from '@/features/microlearning/components/MicrolearningWidget';
+import '@/features/microlearning/styles/microlearning.css';
 
-export const MicrolearningPage: React.FC = () => {
-  return (
-    <div style={{ padding: '20px', maxWidth: '800px', margin: '0 auto' }}>
-      <h1>⚡ Microlearning Diario</h1>
-      <p style={{ color: '#666', marginBottom: '20px' }}>
-        ¡Practicá un minuto cada día para mantener tu racha 🔥!
-      </p>
-      <MicrolearningWidget />
-    </div>
-  );
-};
+export const MicrolearningPage: React.FC = () => (
+  <div className="ml-page fade-in-page">
+    <h1>Daily Microlearning</h1>
+    <p className="ml-page__intro">
+      A short bite each day to keep your streak going. Check the level, estimated time, and complete
+      it when you&apos;re ready.
+    </p>
+    <MicrolearningWidget />
+  </div>
+);
