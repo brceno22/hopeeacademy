@@ -18,7 +18,7 @@ export class ErrorBoundary extends React.Component<{ children: React.ReactNode }
       return (
         <div style={{ padding: '60px 20px', maxWidth: '600px', margin: '0 auto', textAlign: 'center' }}>
           <div style={{ fontSize: '40px', marginBottom: '20px' }}>🛠️</div>
-          <h2 style={{ color: 'var(--primary-color)', fontFamily: 'var(--font-titles)', marginBottom: '10px' }}>Algo no salió como esperábamos</h2>
+          <h2 style={{ color: 'var(--primary-color)', fontFamily: 'var(--font-titles)', marginBottom: '10px' }}>Something went wrong</h2>
           <p style={{ color: 'var(--text-muted)', marginBottom: '30px' }}>{this.state.message}</p>
           <button
             type="button"
@@ -26,7 +26,7 @@ export class ErrorBoundary extends React.Component<{ children: React.ReactNode }
             style={{ maxWidth: '200px', margin: '0 auto' }}
             onClick={() => window.location.assign('/')}
           >
-            Volver al inicio
+            Back to home
           </button>
         </div>
       );

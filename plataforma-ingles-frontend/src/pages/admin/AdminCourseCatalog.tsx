@@ -1,12 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '@/core/api/axios';
+import { useAuth } from '@/core/context/AuthContext';
 import type { CourseFolderNode, MoodleCourse } from '@/core/types/courses-catalog';
+import { MoodleCourseAutocomplete } from './MoodleCourseAutocomplete';
+import './admin.css';
 
 export const AdminCourseCatalog: React.FC = () => {
   const navigate = useNavigate();
-  const adminKey = localStorage.getItem('adminKey');
-  const headers = { 'x-admin-key': adminKey };
+  const { adminKey } = useAuth();
+  const headers = { 'x-admin-key': adminKey || '' };
 
   const [tree, setTree] = useState<CourseFolderNode[]>([]);
   const [moodleCourses, setMoodleCourses] = useState<MoodleCourse[]>([]);
@@ -35,7 +38,7 @@ export const AdminCourseCatalog: React.FC = () => {
       setTree(treeRes.data);
       setMoodleCourses(coursesRes.data);
     } catch {
-      setError('Error al cargar catálogo');
+      setError('Failed to load catalog');
     } finally {
       setLoading(false);
     }
@@ -43,10 +46,13 @@ export const AdminCourseCatalog: React.FC = () => {
 
   useEffect(() => {
     if (!adminKey) navigate('/admin');
-    else load();
-  }, []);
+    else void load();
+  }, [adminKey, navigate]);
 
-  const flatFolders = (nodes: CourseFolderNode[], depth = 0): { node: CourseFolderNode; depth: number }[] => {
+  const flatFolders = (
+    nodes: CourseFolderNode[],
+    depth = 0,
+  ): { node: CourseFolderNode; depth: number }[] => {
     const out: { node: CourseFolderNode; depth: number }[] = [];
     for (const n of nodes) {
       out.push({ node: n, depth });
@@ -61,14 +67,17 @@ export const AdminCourseCatalog: React.FC = () => {
     try {
       await api.post(
         '/courses/admin/folders',
-        { name: newFolderName, parentId: parentFolderId ? parseInt(parentFolderId, 10) : null },
+        {
+          name: newFolderName,
+          parentId: parentFolderId ? parseInt(parentFolderId, 10) : null,
+        },
         { headers },
       );
       setNewFolderName('');
-      setSuccess('Carpeta creada');
+      setSuccess('Folder created');
       await load();
     } catch {
-      setError('No se pudo crear la carpeta');
+      setError('Could not create folder');
     }
   };
 
@@ -81,10 +90,10 @@ export const AdminCourseCatalog: React.FC = () => {
         { headers },
       );
       setEditing(null);
-      setSuccess('Carpeta actualizada');
+      setSuccess('Folder updated');
       await load();
     } catch {
-      setError('No se pudo guardar los cambios');
+      setError('Could not save changes');
     }
   };
 
@@ -96,7 +105,7 @@ export const AdminCourseCatalog: React.FC = () => {
       setDeleteTarget(null);
       await load();
     } catch {
-      setError('No se pudo eliminar la carpeta');
+      setError('Could not delete folder');
     }
   };
 
@@ -104,26 +113,31 @@ export const AdminCourseCatalog: React.FC = () => {
     const folderId = parseInt(assignFolderId, 10);
     const moodleCourseId = parseInt(assignCourseId, 10);
     if (!folderId || !moodleCourseId) {
-      setError('Elegí carpeta y curso Moodle');
+      setError('Select a folder and a Moodle course');
       return;
     }
     try {
-      await api.post(`/courses/admin/folders/${folderId}/courses`, { moodleCourseId }, { headers });
-      setSuccess('Curso asignado a la carpeta');
+      await api.post(
+        `/courses/admin/folders/${folderId}/courses`,
+        { moodleCourseId },
+        { headers },
+      );
+      setSuccess('Course assigned to folder');
+      setAssignCourseId('');
       await load();
     } catch {
-      setError('No se pudo asignar');
+      setError('Could not assign course');
     }
   };
 
   const unassign = async (linkId: number) => {
-    if (!confirm('¿Quitar este curso de la carpeta? (no se borra en Moodle)')) return;
+    if (!confirm('Remove this course from the folder? (it will not be deleted in Moodle)')) return;
     try {
       await api.delete(`/courses/admin/links/${linkId}`, { headers });
-      setSuccess('Enlace eliminado');
+      setSuccess('Link removed');
       await load();
     } catch {
-      setError('Error al quitar curso');
+      setError('Failed to remove course');
     }
   };
 
@@ -133,82 +147,103 @@ export const AdminCourseCatalog: React.FC = () => {
     await load();
   };
 
-  const s = {
-    card: { background: '#fff', border: '1px solid #ddd', borderRadius: '8px', padding: '20px', marginBottom: '20px' } as React.CSSProperties,
-    btn: (bg: string) => ({ background: bg, color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' } as React.CSSProperties),
-    input: { padding: '10px', border: '1px solid #ddd', borderRadius: '6px', marginRight: '8px' } as React.CSSProperties,
-    row: { display: 'flex', alignItems: 'flex-start', gap: '8px', padding: '12px 0', borderBottom: '1px solid #eee', flexWrap: 'wrap' as const },
-  };
-
   return (
-    <div style={{ padding: '30px', maxWidth: '1100px', margin: '0 auto', fontFamily: 'system-ui' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '24px' }}>
-        <h1 style={{ margin: 0 }}>📂 Organizar cursos Moodle</h1>
-        <div style={{ display: 'flex', gap: '8px' }}>
-          <button type="button" onClick={() => navigate('/admin/dashboard')} style={s.btn('#666')}>← Exámenes</button>
-          <button type="button" onClick={() => { localStorage.removeItem('adminKey'); navigate('/admin'); }} style={s.btn('#dc3545')}>Salir</button>
+    <div className="admin-page">
+      <header className="admin-page__header">
+        <h1>Folders / program</h1>
+        <p>Organize the Hopee tree and assign Moodle courses to each folder.</p>
+      </header>
+
+      {success && <div className="admin-alert ok">{success}</div>}
+      {error && <div className="admin-alert err">{error}</div>}
+
+      <div className="admin-card">
+        <button type="button" className="admin-btn primary" onClick={() => void seed()}>
+          Create sample B1 / B2 folders
+        </button>
+      </div>
+
+      <div className="admin-card">
+        <h3>New folder</h3>
+        <div className="admin-form-row">
+          <input
+            className="admin-input"
+            placeholder="Name"
+            value={newFolderName}
+            onChange={(e) => setNewFolderName(e.target.value)}
+          />
+          <select
+            className="admin-select"
+            value={parentFolderId}
+            onChange={(e) => setParentFolderId(e.target.value)}
+          >
+            <option value="">Root</option>
+            {allFlat.map(({ node, depth }) => (
+              <option key={node.id} value={node.id}>
+                {'—'.repeat(depth)} {node.name}
+              </option>
+            ))}
+          </select>
+          <button type="button" className="admin-btn accent" onClick={() => void createFolder()}>
+            Create
+          </button>
         </div>
       </div>
 
-      {success && <p style={{ background: '#e8f5e9', padding: '12px', borderRadius: '6px' }}>{success}</p>}
-      {error && <p style={{ background: '#fce4ec', padding: '12px', borderRadius: '6px' }}>{error}</p>}
-
-      <div style={s.card}>
-        <button type="button" onClick={seed} style={s.btn('#1a237e')}>Crear carpetas B1 / B2 de ejemplo</button>
+      <div className="admin-card">
+        <h3>Assign Moodle course → folder</h3>
+        <p className="page-description" style={{ marginTop: 0 }}>
+          Search for the course by name. You no longer need to remember the Moodle ID.
+        </p>
+        <div className="admin-form-row">
+          <select
+            className="admin-select"
+            value={assignFolderId}
+            onChange={(e) => setAssignFolderId(e.target.value)}
+          >
+            <option value="">Folder</option>
+            {allFlat.map(({ node, depth }) => (
+              <option key={node.id} value={node.id}>
+                {'—'.repeat(depth)} {node.name}
+              </option>
+            ))}
+          </select>
+          <MoodleCourseAutocomplete
+            courses={moodleCourses}
+            valueId={assignCourseId}
+            onChange={setAssignCourseId}
+          />
+          <button type="button" className="admin-btn primary" onClick={() => void assignCourse()}>
+            Assign
+          </button>
+        </div>
       </div>
 
-      <div style={s.card}>
-        <h3 style={{ marginTop: 0 }}>Nueva carpeta</h3>
-        <input style={s.input} placeholder="Nombre" value={newFolderName} onChange={(e) => setNewFolderName(e.target.value)} />
-        <select style={s.input} value={parentFolderId} onChange={(e) => setParentFolderId(e.target.value)}>
-          <option value="">Raíz</option>
-          {allFlat.map(({ node, depth }) => (
-            <option key={node.id} value={node.id}>{'—'.repeat(depth)} {node.name}</option>
-          ))}
-        </select>
-        <button type="button" onClick={createFolder} style={s.btn('#2e7d32')}>Crear</button>
-      </div>
-
-      <div style={s.card}>
-        <h3 style={{ marginTop: 0 }}>Asignar curso Moodle → carpeta</h3>
-        <select style={s.input} value={assignFolderId} onChange={(e) => setAssignFolderId(e.target.value)}>
-          <option value="">Carpeta</option>
-          {allFlat.map(({ node, depth }) => (
-            <option key={node.id} value={node.id}>{'—'.repeat(depth)} {node.name}</option>
-          ))}
-        </select>
-        <select style={{ ...s.input, minWidth: '280px' }} value={assignCourseId} onChange={(e) => setAssignCourseId(e.target.value)}>
-          <option value="">Curso en Moodle</option>
-          {moodleCourses.map((c) => (
-            <option key={c.id} value={c.id}>#{c.id} — {c.name}</option>
-          ))}
-        </select>
-        <button type="button" onClick={assignCourse} style={s.btn('#9c27b0')}>Asignar</button>
-      </div>
-
-      <div style={s.card}>
-        <h3 style={{ marginTop: 0 }}>Carpetas — editar, ordenar o eliminar</h3>
+      <div className="admin-card">
+        <h3>Folders — edit, sort, or delete</h3>
         {loading ? (
-          <p>Cargando...</p>
+          <p className="page-description">Loading…</p>
         ) : (
           allFlat.map(({ node, depth }) => (
-            <div key={node.id} style={s.row}>
-              <div style={{ flex: 1, minWidth: '200px' }}>
-                <span style={{ color: '#888' }}>{'│  '.repeat(depth)}</span>
+            <div key={node.id} className="admin-folder-row">
+              <div style={{ flex: 1, minWidth: 200 }}>
+                <span style={{ color: 'var(--text-muted)' }}>{'│  '.repeat(depth)}</span>
                 <strong>{node.name}</strong>
-                <small style={{ marginLeft: '8px', color: '#aaa' }}>#{node.id} · orden {node.sortOrder}</small>
+                <span className="admin-folder-meta">
+                  #{node.id} · order {node.sortOrder}
+                </span>
                 {(node.courses ?? []).length > 0 && (
-                  <ul style={{ margin: '8px 0 0', paddingLeft: '20px', fontSize: '14px' }}>
+                  <ul className="admin-course-list">
                     {node.courses.map((c) => (
                       <li key={c.linkId ?? c.id}>
                         📘 {c.name}
                         {c.linkId && (
                           <button
                             type="button"
-                            onClick={() => unassign(c.linkId!)}
-                            style={{ marginLeft: '8px', fontSize: '12px', color: '#c62828', border: 'none', background: 'none', cursor: 'pointer' }}
+                            className="admin-btn ghost"
+                            onClick={() => void unassign(c.linkId!)}
                           >
-                            quitar
+                            remove
                           </button>
                         )}
                       </li>
@@ -216,20 +251,24 @@ export const AdminCourseCatalog: React.FC = () => {
                   </ul>
                 )}
               </div>
-              <div style={{ display: 'flex', gap: '6px' }}>
+              <div style={{ display: 'flex', gap: 6 }}>
                 <button
                   type="button"
-                  style={s.btn('#ff9800')}
+                  className="admin-btn accent"
                   onClick={() => {
                     setEditing(node);
                     setEditName(node.name);
                     setEditSort(node.sortOrder ?? 0);
                   }}
                 >
-                  ✏️ Editar
+                  Edit
                 </button>
-                <button type="button" style={s.btn('#dc3545')} onClick={() => setDeleteTarget(node)}>
-                  🗑️ Eliminar
+                <button
+                  type="button"
+                  className="admin-btn danger"
+                  onClick={() => setDeleteTarget(node)}
+                >
+                  Delete
                 </button>
               </div>
             </div>
@@ -238,57 +277,55 @@ export const AdminCourseCatalog: React.FC = () => {
       </div>
 
       {editing && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0,0,0,0.45)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-          }}
-        >
-          <div style={{ background: '#fff', padding: '28px', borderRadius: '12px', width: 'min(400px, 90vw)' }}>
-            <h3 style={{ marginTop: 0 }}>Editar carpeta</h3>
-            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>Nombre</label>
-            <input style={{ ...s.input, width: '100%', marginBottom: '16px', boxSizing: 'border-box' }} value={editName} onChange={(e) => setEditName(e.target.value)} />
-            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>Orden (número menor = primero)</label>
+        <div className="admin-modal-backdrop">
+          <div className="admin-modal">
+            <h3 style={{ marginTop: 0 }}>Edit folder</h3>
+            <label style={{ display: 'block', marginBottom: 8, fontWeight: 600 }}>Name</label>
+            <input
+              className="admin-input"
+              style={{ width: '100%', marginBottom: 16, boxSizing: 'border-box' }}
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+            />
+            <label style={{ display: 'block', marginBottom: 8, fontWeight: 600 }}>
+              Order (lower = first)
+            </label>
             <input
               type="number"
-              style={{ ...s.input, width: '100%', marginBottom: '20px', boxSizing: 'border-box' }}
+              className="admin-input"
+              style={{ width: '100%', marginBottom: 20, boxSizing: 'border-box' }}
               value={editSort}
               onChange={(e) => setEditSort(parseInt(e.target.value, 10) || 0)}
             />
-            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-              <button type="button" onClick={() => setEditing(null)} style={s.btn('#666')}>Cancelar</button>
-              <button type="button" onClick={saveEdit} style={s.btn('#2e7d32')}>Guardar</button>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button type="button" className="admin-btn muted" onClick={() => setEditing(null)}>
+                Cancel
+              </button>
+              <button type="button" className="admin-btn primary" onClick={() => void saveEdit()}>
+                Save
+              </button>
             </div>
           </div>
         </div>
       )}
 
       {deleteTarget && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0,0,0,0.45)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-          }}
-        >
-          <div style={{ background: '#fff', padding: '28px', borderRadius: '12px', width: 'min(440px, 90vw)' }}>
-            <h3 style={{ marginTop: 0, color: '#c62828' }}>¿Eliminar &quot;{deleteTarget.name}&quot;?</h3>
-            <p style={{ color: '#555', lineHeight: 1.6 }}>
-              Se eliminarán <strong>todas las subcarpetas</strong> y los <strong>enlaces</strong> a cursos de esta rama.
-              Los cursos en <strong>Moodle no se borran</strong>. Los alumnos dejarán de ver esta organización.
+        <div className="admin-modal-backdrop">
+          <div className="admin-modal">
+            <h3 style={{ marginTop: 0, color: '#c62828' }}>
+              Delete &quot;{deleteTarget.name}&quot;?
+            </h3>
+            <p style={{ color: 'var(--text-muted)', lineHeight: 1.6 }}>
+              This will delete <strong>all subfolders</strong> and course <strong>links</strong> in
+              this branch. Courses in <strong>Moodle are not deleted</strong>.
             </p>
-            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '20px' }}>
-              <button type="button" onClick={() => setDeleteTarget(null)} style={s.btn('#666')}>Cancelar</button>
-              <button type="button" onClick={confirmDelete} style={s.btn('#dc3545')}>Sí, eliminar</button>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 20 }}>
+              <button type="button" className="admin-btn muted" onClick={() => setDeleteTarget(null)}>
+                Cancel
+              </button>
+              <button type="button" className="admin-btn danger" onClick={() => void confirmDelete()}>
+                Yes, delete
+              </button>
             </div>
           </div>
         </div>

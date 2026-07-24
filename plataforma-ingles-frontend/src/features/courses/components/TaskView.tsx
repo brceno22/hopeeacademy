@@ -1,6 +1,7 @@
 //TaskView.tsx
 import React, { useState, useEffect, useRef } from 'react';
 import api from '@/core/api/axios';
+import { sanitizeHtml } from '@/core/utils/sanitize';
 import "@/features/forums/styles/widgets-forum.css";
 
 interface TaskViewProps {
@@ -29,12 +30,12 @@ export const TaskView: React.FC<TaskViewProps> = ({ module }) => {
     try {
       const res = await api.get(`/tasks/${module.instanceId}/status`, { headers: { 'x-user-token': token } });
       setStatus(res.data);
-    } catch (err) { setError('No se pudo cargar el estado de la tarea.'); } 
+    } catch (err) { setError('Could not load assignment status.'); } 
     finally { setLoading(false); }
   };
 
   const handleSubmit = async () => {
-    if (!text && !file) { setError('Debés escribir algo o adjuntar un archivo.'); return; }
+    if (!text && !file) { setError('Write something or attach a file.'); return; }
     setSubmitting(true); setError(''); setSuccess('');
     try {
       let fileBase64, fileMimeType, fileName;
@@ -50,9 +51,9 @@ export const TaskView: React.FC<TaskViewProps> = ({ module }) => {
       await api.post(`/tasks/${module.instanceId}/submit`, {
         token, text, fileName, fileBase64, fileMimeType, userId: parseInt(localStorage.getItem('moodleUserId') || '0'),
       });
-      setSuccess('¡Tarea entregada correctamente! ✅');
+      setSuccess('Assignment submitted successfully! ✅');
       await fetchStatus(); setText(''); setFile(null);
-    } catch (err: any) { setError(err.response?.data?.message || 'Error al entregar la tarea.'); } 
+    } catch (err: any) { setError(err.response?.data?.message || 'Failed to submit the assignment.'); } 
     finally { setSubmitting(false); }
   };
 
@@ -62,20 +63,20 @@ export const TaskView: React.FC<TaskViewProps> = ({ module }) => {
     const grading = status.feedback?.grade;
 
     if (grading?.grade && parseFloat(grading.grade) >= 0) {
-      return { color: '#059669', bg: 'rgba(16, 185, 129, 0.1)', border: 'rgba(16, 185, 129, 0.2)', icon: '⭐', label: `Calificado: ${parseFloat(grading.grade).toFixed(1)} / ${grading.grade}` };
+      return { color: '#059669', bg: 'rgba(16, 185, 129, 0.1)', border: 'rgba(16, 185, 129, 0.2)', icon: '⭐', label: `Graded: ${parseFloat(grading.grade).toFixed(1)} / ${grading.grade}` };
     }
     if (submission?.status === 'submitted') {
-      return { color: 'var(--primary-color)', bg: 'rgba(0, 113, 188, 0.1)', border: 'rgba(0, 113, 188, 0.2)', icon: '✅', label: 'Entregado — pendiente de calificación' };
+      return { color: 'var(--primary-color)', bg: 'rgba(0, 113, 188, 0.1)', border: 'rgba(0, 113, 188, 0.2)', icon: '✅', label: 'Submitted — awaiting grade' };
     }
     if (submission?.status === 'draft') {
-      return { color: 'var(--secondary-color)', bg: 'rgba(255, 123, 0, 0.1)', border: 'rgba(255, 123, 0, 0.2)', icon: '📝', label: 'Borrador guardado' };
+      return { color: 'var(--secondary-color)', bg: 'rgba(255, 123, 0, 0.1)', border: 'rgba(255, 123, 0, 0.2)', icon: '📝', label: 'Draft saved' };
     }
-    return { color: 'var(--text-muted)', bg: 'var(--bg-surface)', border: 'var(--border-color)', icon: '⏳', label: 'Sin entregar' };
+    return { color: 'var(--text-muted)', bg: 'var(--bg-surface)', border: 'var(--border-color)', icon: '⏳', label: 'Not submitted' };
   };
 
   const statusInfo = getStatusInfo();
 
-  if (loading) return <div className="page-description" style={{ padding: '40px', textAlign: 'center' }}>Cargando tarea...</div>;
+  if (loading) return <div className="page-description" style={{ padding: '40px', textAlign: 'center' }}>Loading assignment...</div>;
 
   return (
     <div style={{ maxWidth: '800px', margin: '0 auto' }}>
@@ -90,7 +91,7 @@ export const TaskView: React.FC<TaskViewProps> = ({ module }) => {
       </div>
 
       {module.description && (
-        <div className="html-content-render widget-card" dangerouslySetInnerHTML={{ __html: module.description }} />
+        <div className="html-content-render widget-card" dangerouslySetInnerHTML={{ __html: sanitizeHtml(module.description) }} />
       )}
 
       {statusInfo && (
@@ -99,7 +100,7 @@ export const TaskView: React.FC<TaskViewProps> = ({ module }) => {
           <div>
             <p style={{ margin: 0, fontWeight: 'bold', color: statusInfo.color, fontSize: '1.1rem' }}>{statusInfo.label}</p>
             {status?.feedback?.grade?.grader && (
-              <p style={{ margin: '4px 0 0 0', fontSize: '0.9rem', color: 'var(--text-muted)' }}>Calificado por: {status.feedback.grade.grader}</p>
+              <p style={{ margin: '4px 0 0 0', fontSize: '0.9rem', color: 'var(--text-muted)' }}>Graded by: {status.feedback.grade.grader}</p>
             )}
           </div>
         </div>
@@ -109,19 +110,19 @@ export const TaskView: React.FC<TaskViewProps> = ({ module }) => {
       {error && <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#ef4444', padding: '16px', borderRadius: '12px', marginBottom: '24px', fontWeight: '600' }}>{error}</div>}
 
       <div className="widget-card">
-        <h3 style={{ marginBottom: '24px' }}>📤 Entregar tarea</h3>
+        <h3 style={{ marginBottom: '24px' }}>📤 Submit assignment</h3>
 
-        <label style={{ display: 'block', fontWeight: '600', marginBottom: '8px', color: 'var(--text-main)' }}>Respuesta en texto</label>
+        <label style={{ display: 'block', fontWeight: '600', marginBottom: '8px', color: 'var(--text-main)' }}>Text response</label>
         <textarea
           className="forum-input-box"
           value={text}
           onChange={e => setText(e.target.value)}
-          placeholder="Escribí tu respuesta acá..."
+          placeholder="Write your response here..."
           rows={5}
           style={{ marginBottom: '24px', resize: 'vertical' }}
         />
 
-        <label style={{ display: 'block', fontWeight: '600', marginBottom: '8px', color: 'var(--text-main)' }}>Adjuntar archivo</label>
+        <label style={{ display: 'block', fontWeight: '600', marginBottom: '8px', color: 'var(--text-main)' }}>Attach a file</label>
         <div className={`task-upload-zone ${file ? 'has-file' : ''}`} onClick={() => fileInputRef.current?.click()}>
           <input ref={fileInputRef} type="file" style={{ display: 'none' }} onChange={e => setFile(e.target.files?.[0] || null)} />
           {file ? (
@@ -132,13 +133,13 @@ export const TaskView: React.FC<TaskViewProps> = ({ module }) => {
           ) : (
             <div>
               <p style={{ margin: 0, fontSize: '32px' }}>📁</p>
-              <p style={{ margin: '12px 0 0 0', color: 'var(--text-muted)', fontWeight: '500' }}>Hacé click para seleccionar un archivo</p>
+              <p style={{ margin: '12px 0 0 0', color: 'var(--text-muted)', fontWeight: '500' }}>Click to select a file</p>
             </div>
           )}
         </div>
 
         <button className="btn-card primary" onClick={handleSubmit} disabled={submitting}>
-          {submitting ? 'Enviando...' : 'Entregar Tarea 📤'}
+          {submitting ? 'Submitting...' : 'Submit assignment 📤'}
         </button>
       </div>
     </div>

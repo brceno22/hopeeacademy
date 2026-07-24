@@ -1,0 +1,128 @@
+[
+  {
+    "type": "vocabulary",
+    "title": "B1 · Thorough",
+    "content": "Thorough — detailed and careful; done completely.",
+    "translation": "Exhaustivo / minucioso. Ejemplo: She did a thorough review of the essay.",
+    "scheduledFor": "2026-07-24"
+  },
+  {
+    "type": "vocabulary",
+    "title": "B1 · Reliable",
+    "content": "Reliable — someone or something you can trust or depend on.",
+    "translation": "Confiable. Ejemplo: He's a reliable classmate; he always delivers on time.",
+    "scheduledFor": "2026-07-25"
+  },
+  {
+    "type": "vocabulary",
+    "title": "B2 · Straightforward",
+    "content": "Straightforward — clear, simple, and easy to understand.",
+    "translation": "Claro / directo. Ejemplo: The instructions were straightforward.",
+    "scheduledFor": "2026-07-26"
+  },
+  {
+    "type": "vocabulary",
+    "title": "B1 · Deadline",
+    "content": "Deadline — the latest time or date by which something must be finished.",
+    "translation": "Fecha límite. Ejemplo: The deadline for the assignment is Friday.",
+    "scheduledFor": "2026-07-27"
+  },
+  {
+    "type": "vocabulary",
+    "title": "B2 · Overwhelm",
+    "content": "Overwhelm — to make someone feel too much pressure or emotion.",
+    "translation": "Abrumar. Ejemplo: Don't let the exam overwhelm you; study step by step.",
+    "scheduledFor": "2026-07-28"
+  },
+  {
+    "type": "vocabulary",
+    "title": "B1 · Feedback",
+    "content": "Feedback — comments or advice about how well you did something.",
+    "translation": "Retroalimentación / comentarios. Ejemplo: Ask your teacher for feedback on your speaking.",
+    "scheduledFor": "2026-07-29"
+  },
+  {
+    "type": "phrasal_verb",
+    "title": "B1 · Look forward to",
+    "content": "Look forward to + -ing/noun — to feel excited about something that will happen.",
+    "translation": "Esperar con ganas. Ejemplo: I look forward to meeting you next week.",
+    "scheduledFor": "2026-07-30"
+  },
+  {
+    "type": "phrasal_verb",
+    "title": "B1 · Give up",
+    "content": "Give up — to stop trying; to quit.",
+    "translation": "Rendirse / dejar. Ejemplo: Don't give up if the listening feels hard at first.",
+    "scheduledFor": "2026-07-31"
+  },
+  {
+    "type": "phrasal_verb",
+    "title": "B2 · Catch up on",
+    "content": "Catch up on — to do something you haven't had time to do; to get the latest news.",
+    "translation": "Ponerse al día. Ejemplo: I need to catch up on my homework this weekend.",
+    "scheduledFor": "2026-08-01"
+  },
+  {
+    "type": "phrasal_verb",
+    "title": "B1 · Figure out",
+    "content": "Figure out — to understand or solve something after thinking about it.",
+    "translation": "Entender / resolver. Ejemplo: I can't figure out this grammar rule.",
+    "scheduledFor": "2026-08-02"
+  },
+  {
+    "type": "phrasal_verb",
+    "title": "B2 · Bring up",
+    "content": "Bring up — to start talking about a topic.",
+    "translation": "Mencionar / sacar un tema. Ejemplo: She brought up an interesting point in the forum.",
+    "scheduledFor": "2026-08-03"
+  },
+  {
+    "type": "phrasal_verb",
+    "title": "B1 · Run out of",
+    "content": "Run out of — to have no more of something left.",
+    "translation": "Quedarse sin. Ejemplo: We ran out of time during the exam.",
+    "scheduledFor": "2026-08-04"
+  },
+  {
+    "type": "audio",
+    "title": "B1 · Listening · Daily routine",
+    "content": "I usually wake up at seven, have breakfast, and then study English for twenty minutes.",
+    "translation": "Normalmente me despierto a las siete, desayuno y después estudio inglés veinte minutos.",
+    "scheduledFor": "2026-08-05"
+  },
+  {
+    "type": "audio",
+    "title": "B1 · Listening · At the café",
+    "content": "Could I have a large coffee with milk, please? And a piece of chocolate cake.",
+    "translation": "¿Me podría dar un café grande con leche, por favor? Y un trozo de torta de chocolate.",
+    "scheduledFor": "2026-08-06"
+  },
+  {
+    "type": "audio",
+    "title": "B2 · Listening · Giving an opinion",
+    "content": "In my opinion, practicing a little every day is more effective than studying for hours once a week.",
+    "translation": "En mi opinión, practicar un poco todos los días es más efectivo que estudiar horas una vez por semana.",
+    "scheduledFor": "2026-08-07"
+  },
+  {
+    "type": "audio",
+    "title": "B2 · Listening · Making plans",
+    "content": "Are you free on Saturday afternoon? I was thinking we could review the phrasal verbs together.",
+    "translation": "¿Estás libre el sábado a la tarde? Pensaba que podríamos repasar los phrasal verbs juntos.",
+    "scheduledFor": "2026-08-08"
+  },
+  {
+    "type": "vocabulary",
+    "title": "B2 · Worthwhile",
+    "content": "Worthwhile — useful, valuable, or worth the time and effort.",
+    "translation": "Que vale la pena. Ejemplo: Watching short English videos is a worthwhile habit.",
+    "scheduledFor": "2026-08-09"
+  },
+  {
+    "type": "phrasal_verb",
+    "title": "B2 · Come across",
+    "content": "Come across — to find something by chance; to seem a certain way.",
+    "translation": "Encontrar por casualidad / dar la impresión. Ejemplo: I came across a great podcast yesterday.",
+    "scheduledFor": "2026-08-10"
+  }
+]

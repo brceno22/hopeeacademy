@@ -12,7 +12,7 @@ export const CoursesListPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    setHeaderTitle('Mis cursos');
+    setHeaderTitle('My courses');
     clearHeaderTabs();
   }, [setHeaderTitle, clearHeaderTabs]);
 
@@ -23,12 +23,12 @@ export const CoursesListPage: React.FC = () => {
     });
   }, []);
 
-  if (loading) return <p className="page-description">Cargando cursos...</p>;
+  if (loading) return <p className="page-description">Loading courses...</p>;
 
   return (
     <div className="fade-in-page">
       <p className="page-description">
-        Todos tus cursos activos en Moodle. Hacé clic para ver lecciones, tareas y material.
+        All your active Moodle courses. Click to view lessons, assignments, and materials.
       </p>
       
       <div className="courses-grid">
@@ -45,7 +45,7 @@ export const CoursesListPage: React.FC = () => {
       
       {courses.length === 0 && (
         <div className="home-card">
-          <p className="page-description" style={{ margin: 0 }}>No tenés cursos inscriptos actualmente.</p>
+          <p className="page-description" style={{ margin: 0 }}>You&apos;re not enrolled in any courses yet.</p>
         </div>
       )}
     </div>

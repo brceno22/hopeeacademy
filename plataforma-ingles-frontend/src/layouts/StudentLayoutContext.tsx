@@ -21,7 +21,7 @@ const StudentLayoutContext = createContext<StudentLayoutContextValue | null>(nul
 
 export const StudentLayoutProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [headerTitle, setHeaderTitle] = useState('Inicio');
+  const [headerTitle, setHeaderTitle] = useState('Home');
   const [headerTabs, setHeaderTabsState] = useState<HeaderTab[]>([]);
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
 
@@ -58,6 +58,6 @@ export const StudentLayoutProvider: React.FC<{ children: React.ReactNode }> = ({
 
 export function useStudentLayout() {
   const ctx = useContext(StudentLayoutContext);
-  if (!ctx) throw new Error('useStudentLayout debe usarse dentro de StudentLayout');
+  if (!ctx) throw new Error('useStudentLayout must be used within StudentLayout');
   return ctx;
 }

@@ -1,12 +1,12 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-
+import { AuthModule } from '../auth/auth.module';
+import { MoodleModule } from '../moodle/moodle.module';
 import { MicrolearningContent } from './microlearning-content.entity';
-import { UserMicrolearningHistory } from './user-microlearning-history.entity';
-import { UserStreak } from './user-streak.entity';
-import { MoodleModule } from '../moodle/moodle.module'; // Ajustá la ruta si es necesario
 import { MicrolearningController } from './microlearning.controller';
 import { MicrolearningService } from './microlearning.service';
+import { UserMicrolearningHistory } from './user-microlearning-history.entity';
+import { UserStreak } from './user-streak.entity';
 
 @Module({
   imports: [
@@ -16,6 +16,7 @@ import { MicrolearningService } from './microlearning.service';
       UserStreak,
     ]),
     MoodleModule,
+    AuthModule,
   ],
   controllers: [MicrolearningController],
   providers: [MicrolearningService],

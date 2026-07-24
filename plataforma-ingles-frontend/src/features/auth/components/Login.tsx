@@ -1,16 +1,22 @@
-//login.tsx
 import React, { useState } from 'react';
-import api from '@/core/api/axios';
 import { useNavigate } from 'react-router-dom';
-import '../styles/login.css'; // Asegurate de que la ruta sea correcta
+import api from '@/core/api/axios';
+import { useAuth } from '@/core/context/AuthContext';
+import '../styles/login.css';
 
 export const Login: React.FC = () => {
   const navigate = useNavigate();
+  const { loginStudent, isAuthenticated } = useAuth();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+
+  React.useEffect(() => {
+    if (isAuthenticated) navigate('/app/inicio', { replace: true });
+  }, [isAuthenticated, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -19,21 +25,22 @@ export const Login: React.FC = () => {
 
     try {
       const response = await api.post('/auth/login', { username, password });
-      const token = response.data.moodleToken;
-      
-      localStorage.setItem('token', token);
-      if (response.data.userId != null) {
-        localStorage.setItem('moodleUserId', String(response.data.userId));
-      }
-      if (response.data.fullName) {
-        localStorage.setItem('fullName', response.data.fullName);
-      }
-      
+      loginStudent({
+        token: response.data.moodleToken,
+        userId: response.data.userId,
+        fullName: response.data.fullName,
+      });
       setSuccess(true);
-      setTimeout(() => navigate('/app/inicio'), 1000);
-
-    } catch (err: any){
-      setError(err.response?.data?.message || 'Error al conectar con el servidor. Revisá tus credenciales.');
+      setTimeout(() => navigate('/app/inicio'), 800);
+    } catch (err: unknown) {
+      const message =
+        (err as { response?: { data?: { message?: string | string[] } } })?.response?.data
+          ?.message;
+      setError(
+        Array.isArray(message)
+          ? message.join(', ')
+          : message || 'Could not connect to the server. Please check your credentials.',
+      );
     } finally {
       setLoading(false);
     }
@@ -41,40 +48,33 @@ export const Login: React.FC = () => {
 
   return (
     <div className="login-wrapper">
-      
-      {/* LADO IZQUIERDO: IMAGEN DE LA EMPRESA (Se oculta en celulares) */}
       <div className="login-brand-side">
-        {/* 
-          🔴 INSTRUCCIÓN PARA IMAGEN DE FONDO: 
-          Descomentá la línea de abajo y poné el nombre de tu foto de la academia. 
-        */}
-          <img src="/Iso-naranja-Hopee-Academy.png" alt="Hopee English Background" className="login-brand-bg-image" /> 
-        
+        <img
+          src="/Iso-naranja-Hopee-Academy.png"
+          alt="Hopee English Background"
+          className="login-brand-bg-image"
+        />
         <div className="login-brand-content">
           <h1>Welcome to Hopee Academy</h1>
-          <p>La plataforma donde tu futuro no tiene límites. Ingresa para continuar tu camino bilingüe.</p>
+          <p>
+            The platform where your future has no limits. Sign in to continue your bilingual
+            journey.
+          </p>
         </div>
       </div>
 
-      {/* LADO DERECHO: FORMULARIO */}
       <div className="login-form-side">
         <div className="login-form-container">
-          
-          {/* 
-            🔴 INSTRUCCIÓN PARA EL LOGO: 
-            Descomentá la línea de abajo y poné el nombre del logo de la empresa.
-          */}
-          <img src="/Logo-Hopee-Academy.png" alt="Logo Hopee English" className="login-logo" /> 
-          
+          <img src="/Logo-Hopee-Academy.png" alt="Logo Hopee English" className="login-logo" />
           <h2>Made to Learn and Thrive</h2>
-          <p>Inicia sesión en tu aula virtual.</p>
+          <p>Sign in to your virtual classroom.</p>
 
           {success && (
             <div className="login-alert success">
-              <span>🎉</span> ¡Login Exitoso! Preparando el aula...
+              <span>🎉</span> Login successful! Preparing your classroom...
             </div>
           )}
-          
+
           {error && (
             <div className="login-alert error">
               <span>⚠️</span> {error}
@@ -83,11 +83,11 @@ export const Login: React.FC = () => {
 
           <form onSubmit={handleSubmit}>
             <div className="login-input-group">
-              <label>Usuario / Email</label>
+              <label>Username / Email</label>
               <input
                 type="text"
                 className="login-input"
-                placeholder="ejemplo@correo.com"
+                placeholder="example@email.com"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 required
@@ -96,25 +96,50 @@ export const Login: React.FC = () => {
             </div>
 
             <div className="login-input-group">
-              <label>Contraseña</label>
-              <input
-                type="password"
-                className="login-input"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                disabled={loading || success}
-              />
+              <label htmlFor="login-password">Password</label>
+              <div className="login-password-wrap">
+                <input
+                  id="login-password"
+                  type={showPassword ? 'text' : 'password'}
+                  className="login-input"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  disabled={loading || success}
+                  autoComplete="current-password"
+                />
+                <button
+                  type="button"
+                  className="login-password-toggle"
+                  onClick={() => setShowPassword((v) => !v)}
+                  disabled={loading || success}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  title={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? (
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" />
+                      <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
+                      <path d="M14.12 14.12a3 3 0 1 1-4.24-4.24" />
+                      <line x1="1" y1="1" x2="23" y2="23" />
+                    </svg>
+                  ) : (
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                  )}
+                </button>
+              </div>
             </div>
 
             <button type="submit" className="btn-login" disabled={loading || success}>
-              {loading ? 'Validando credenciales...' : 'Ingresar al sistema 🚀'}
+              {loading ? 'Validating credentials...' : 'Sign in '}
             </button>
           </form>
         </div>
       </div>
-
     </div>
   );
 };

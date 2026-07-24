@@ -1,43 +1,52 @@
-import { Controller, Get, Post, Body, Headers, UnauthorizedException } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Headers,
+  ParseArrayPipe,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
+import { AdminGuard } from '../auth/admin.guard';
+import { extractBearerToken } from '../auth/auth-token.util';
+import {
+  CompleteMicrolearningDto,
+  CreateMicrolearningDto,
+} from './dto/microlearning.dto';
 import { MicrolearningService } from './microlearning.service';
-import { MicrolearningContent } from './microlearning-content.entity';
-
 
 @Controller('microlearning')
 export class MicrolearningController {
   constructor(private readonly microlearningService: MicrolearningService) {}
 
-  private extractToken(authHeader: string): string {
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      throw new UnauthorizedException('Falta el token de autenticación');
-    }
-    return authHeader.split(' ')[1];
-  }
-
   @Get('today')
   async getTodayContent(@Headers('authorization') authHeader: string) {
-    const token = this.extractToken(authHeader);
+    const token = extractBearerToken(authHeader);
     return this.microlearningService.getTodayContent(token);
   }
 
   @Post('complete')
   async markAsCompleted(
-    @Body('contentId') contentId: number,
-    @Headers('authorization') authHeader: string
+    @Body() body: CompleteMicrolearningDto,
+    @Headers('authorization') authHeader: string,
   ) {
-    const token = this.extractToken(authHeader);
-    return this.microlearningService.markAsCompleted(token, contentId);
+    const token = extractBearerToken(authHeader);
+    return this.microlearningService.markAsCompleted(token, Number(body.contentId));
   }
 
-  // Endpoint para que cargues contenido por Postman (sin Auth para que te sea fácil por ahora)
+  @UseGuards(AdminGuard)
   @Post('admin/create')
-  async createContent(@Body() body: any) {
+  async createContent(@Body() body: CreateMicrolearningDto) {
     return this.microlearningService.createAdminContent(body);
   }
-  
+
+  /** Acepta un array JSON (como envía el panel admin) */
+  @UseGuards(AdminGuard)
   @Post('admin/bulk')
-  async createBulkContent(@Body() contents: any[]) {
-    // Ahora llamamos al servicio, NO al repo directamente
+  async createBulkContent(
+    @Body(new ParseArrayPipe({ items: CreateMicrolearningDto }))
+    contents: CreateMicrolearningDto[],
+  ) {
     return this.microlearningService.createBulkContent(contents);
   }
 }

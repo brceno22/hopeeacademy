@@ -1,6 +1,7 @@
 //ExamView.tsx
-import React, { useState} from 'react';
-import api from '../../../core/api/axios';
+import React, { useState } from 'react';
+import api from '@/core/api/axios';
+import { sanitizeHtml } from '@/core/utils/sanitize';
 import '../styles/course-view.css';
 
 interface Option { id: number; text: string; }
@@ -25,14 +26,14 @@ export const ExamView: React.FC<ExamViewProps> = ({ module, courseId }) => {
 
   const fetchExam = async () => {
     const idABuscar = courseId ?? module.instanceId;
-    if (!idABuscar) { setError('Falta el ID del curso.'); return; }
+    if (!idABuscar) { setError('Course ID is missing.'); return; }
     setLoading(true); setError('');
     try {
       const response = await api.get(`/exams/course/${idABuscar}`);
       setExamList(response.data || []);
-      if (!response.data || response.data.length === 0) setError('No hay exámenes disponibles.');
+      if (!response.data || response.data.length === 0) setError('No exams available.');
     } catch {
-      setError('Error al cargar los exámenes.');
+setError('Failed to load exams.');
     } finally {
       setLoading(false);
     }
@@ -61,7 +62,7 @@ export const ExamView: React.FC<ExamViewProps> = ({ module, courseId }) => {
         await api.post('/progress/mark', { courseId, moduleId: module.id, type: 'auto' });
       } catch (e) { console.error(e); }
     } catch (err) {
-      setError('Error al enviar el examen. Intentá de nuevo.');
+setError('Failed to submit the exam. Please try again.');
     } finally {
       setIsSubmitting(false); setShowConfirm(false);
     }
@@ -77,10 +78,10 @@ export const ExamView: React.FC<ExamViewProps> = ({ module, courseId }) => {
           <p style={{ fontSize: '3rem', fontFamily: 'var(--font-titles)', color: aprobado ? '#10B981' : 'var(--text-main)', margin: 0 }}>
             {resultado.score}%
           </p>
-          <p className="page-description">Respondidas correctas: {resultado.correct} de {resultado.total}</p>
+          <p className="page-description">Correct answers: {resultado.correct} of {resultado.total}</p>
         </div>
         <button className="btn-card primary" style={{ maxWidth: '250px', margin: '0 auto' }} onClick={() => { setResultado(null); setExam(null); setRespuestas({}); setCurrentIndex(0); }}>
-          Volver al inicio
+          Back to start
         </button>
       </div>
     );
@@ -92,15 +93,15 @@ export const ExamView: React.FC<ExamViewProps> = ({ module, courseId }) => {
     return (
       <div className="exam-container" style={{ textAlign: 'center', justifyContent: 'center' }}>
         <div className="exam-header-icon">⚠️</div>
-        <h2 style={{ color: 'var(--secondary-color)' }}>¿Estás seguro de finalizar?</h2>
+        <h2 style={{ color: 'var(--secondary-color)' }}>Are you sure you want to finish?</h2>
         <div className="exam-question-card" style={{ maxWidth: '500px', margin: '0 auto 30px' }}>
-          <p>Has respondido <strong>{respondidas}</strong> de {exam.questions.length} preguntas.</p>
-          {faltantes > 0 && <p style={{ color: '#ef4444', fontWeight: 'bold' }}>¡Te faltan {faltantes} sin responder!</p>}
+          <p>You answered <strong>{respondidas}</strong> of {exam.questions.length} questions.</p>
+          {faltantes > 0 && <p style={{ color: '#ef4444', fontWeight: 'bold' }}>You still have {faltantes} unanswered!</p>}
         </div>
         <div style={{ display: 'flex', gap: '16px', justifyContent: 'center' }}>
-          <button className="btn-back" onClick={() => setShowConfirm(false)} disabled={isSubmitting}>Volver a revisar</button>
+          <button className="btn-back" onClick={() => setShowConfirm(false)} disabled={isSubmitting}>Review answers</button>
           <button className="btn-success" onClick={submitExam} disabled={isSubmitting}>
-            {isSubmitting ? 'Enviando...' : 'Sí, enviar examen'}
+            {isSubmitting ? 'Submitting...' : 'Yes, submit exam'}
           </button>
         </div>
       </div>
@@ -117,22 +118,22 @@ export const ExamView: React.FC<ExamViewProps> = ({ module, courseId }) => {
           
           {examList.length > 0 ? (
             <div style={{ marginTop: '30px', textAlign: 'left' }}>
-              <h3 className="section-title">Exámenes disponibles</h3>
+              <h3 className="section-title">Available exams</h3>
               {examList.map(e => (
                 <div key={e.id} className="program-class-card" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
                     <h4 style={{ margin: 0 }}>{e.title}</h4>
-                    <p style={{ margin: 0 }}>{e.questions.length} preguntas</p>
+                    <p style={{ margin: 0 }}>{e.questions.length} questions</p>
                   </div>
-                  <button className="btn-card primary" style={{ width: 'auto' }} onClick={() => seleccionarExam(e)}>Comenzar →</button>
+                  <button className="btn-card primary" style={{ width: 'auto' }} onClick={() => seleccionarExam(e)}>Start →</button>
                 </div>
               ))}
             </div>
           ) : (
             <div style={{ marginTop: '30px' }}>
-              {module.description && <div className="page-description" dangerouslySetInnerHTML={{ __html: module.description }} />}
+              {module.description && <div className="page-description" dangerouslySetInnerHTML={{ __html: sanitizeHtml(module.description) }} />}
               <button className="btn-card primary" style={{ maxWidth: '250px' }} onClick={fetchExam} disabled={loading}>
-                {loading ? 'Cargando...' : 'Cargar evaluaciones'}
+                {loading ? 'Loading...' : 'Load assessments'}
               </button>
             </div>
           )}
@@ -140,7 +141,7 @@ export const ExamView: React.FC<ExamViewProps> = ({ module, courseId }) => {
       ) : (
         <>
           <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)', fontWeight: 'bold', fontSize: '0.9rem' }}>
-            <span>Pregunta {currentIndex + 1} de {exam.questions.length}</span>
+            <span>Question {currentIndex + 1} of {exam.questions.length}</span>
             <span style={{ color: 'var(--secondary-color)' }}>{Math.round(((currentIndex + 1) / exam.questions.length) * 100)}%</span>
           </div>
           
@@ -174,16 +175,16 @@ export const ExamView: React.FC<ExamViewProps> = ({ module, courseId }) => {
                 style={{ visibility: currentIndex > 0 ? 'visible' : 'hidden', margin: 0 }} 
                 onClick={() => setCurrentIndex(i => i - 1)}
               >
-                ← Anterior
+                ← Previous
               </button>
               
               {currentIndex < exam.questions.length - 1 ? (
                 <button className="btn-card primary" style={{ width: 'auto' }} onClick={() => setCurrentIndex(i => i + 1)}>
-                  Siguiente →
+                  Next →
                 </button>
               ) : (
                 <button className="btn-success" onClick={() => setShowConfirm(true)}>
-                  Finalizar Examen
+                  Finish exam
                 </button>
               )}
             </div>

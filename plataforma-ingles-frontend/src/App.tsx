@@ -1,98 +1,102 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-
-// Componentes globales y Auth
+import {
+  ProtectedAdminRoute,
+  ProtectedStudentRoute,
+} from '@/core/components/ProtectedRoute';
+import { ErrorBoundary } from '@/core/components/ErrorBoundary';
 import { Login } from '@/features/auth/components/Login';
-import { ErrorBoundary } from './core/components/ErrorBoundary';
-
-// Layout Estudiante
-import { StudentLayout } from './layouts/StudentLayout';
-
-// Páginas de Alumno (Estructura limpia)
-import { HomePage } from './pages/student/HomePage';
-import { ProgramPage } from './pages/student/ProgramPage';
-import { ClassDetailPage } from './pages/student/ClassDetailPage';
-import { CoursesListPage } from './pages/student/CoursesListPage';
-import { CourseViewPage } from './pages/student/CourseViewPage'; // <-- Nueva página wrapper
-import { ExamTakePage } from './pages/student/ExamTakePage';     // <-- Movido a pages/student/
-import { PlaceholderPage } from './pages/student/PlaceholderPage';
-import { ForumPage } from './pages/student/ForumPage';
-
-// Páginas de Administración
-import { AdminLogin } from './features/auth/components/AdminLogin';
-import { AdminDashboard } from '@/pages/admin/AdminDashboard';
-import { AdminCourseCatalog } from '@/pages/admin/AdminCourseCatalog';
+import { AdminLogin } from '@/features/auth/components/AdminLogin';
 import { AdminMicrolearning } from '@/features/microlearning/components/AdminMicrolearning';
-
-import { ProgressView } from './pages/student/ProgressView';
-import { MicrolearningPage } from './pages/student/MicrolearningPage';
-
-
+import { AdminLayout } from '@/layouts/AdminLayout';
+import { StudentLayout } from '@/layouts/StudentLayout';
+import { AdminCalendar } from '@/pages/admin/AdminCalendar';
+import { AdminCourseCatalog } from '@/pages/admin/AdminCourseCatalog';
+import { AdminDashboard } from '@/pages/admin/AdminDashboard';
+import { AdminHome } from '@/pages/admin/AdminHome';
+import { AdminRecordings } from '@/pages/admin/AdminRecordings';
+import { AttendancePage } from '@/pages/student/AttendancePage';
+import { CalendarPage } from '@/pages/student/CalendarPage';
+import { ClassDetailPage } from '@/pages/student/ClassDetailPage';
+import { CoursesListPage } from '@/pages/student/CoursesListPage';
+import { CourseViewPage } from '@/pages/student/CourseViewPage';
+import { ExamTakePage } from '@/pages/student/ExamTakePage';
+import { ForumPage } from '@/pages/student/ForumPage';
+import { HomePage } from '@/pages/student/HomePage';
+import { MicrolearningPage } from '@/pages/student/MicrolearningPage';
+import { PlaceholderPage } from '@/pages/student/PlaceholderPage';
+import { ProfilePage } from '@/pages/student/ProfilePage';
+import { ProgramPage } from '@/pages/student/ProgramPage';
+import { ProgressView } from '@/pages/student/ProgressView';
+import { RecordingPlayerPage } from '@/pages/student/RecordingPlayerPage';
+import { RecordingsPage } from '@/pages/student/RecordingsPage';
 
 function App() {
   return (
     <ErrorBoundary>
       <Router>
         <Routes>
-          {/* RUTA PÚBLICA */}
           <Route path="/" element={<Login />} />
 
-          {/* RUTAS ALUMNO (Todas envueltas bajo el menú lateral y header fijo) */}
-          <Route path="/app" element={<StudentLayout />}>
+          <Route
+            path="/app"
+            element={
+              <ProtectedStudentRoute>
+                <StudentLayout />
+              </ProtectedStudentRoute>
+            }
+          >
             <Route index element={<Navigate to="/app/inicio" replace />} />
             <Route path="inicio" element={<HomePage />} />
             <Route path="programa" element={<ProgramPage />} />
             <Route path="programa/clase/:classId" element={<ClassDetailPage />} />
             <Route path="cursos" element={<CoursesListPage />} />
+            <Route path="asistencia" element={<AttendancePage />} />
+            <Route path="calendario" element={<CalendarPage />} />
+            <Route path="grabaciones" element={<RecordingsPage />} />
+            <Route path="grabaciones/:id" element={<RecordingPlayerPage />} />
             <Route path="progreso" element={<ProgressView />} />
-            
-            {/* INTEGRACIÓN EXITOSA: El visor y el examen ahora respetan el layout */}
             <Route path="cursos/:id" element={<CourseViewPage />} />
             <Route path="examenes/:examId/take" element={<ExamTakePage />} />
             <Route path="microlearning" element={<MicrolearningPage />} />
             <Route path="foro" element={<ForumPage />} />
-            
             <Route
               path="examenes"
               element={
                 <PlaceholderPage
-                  title="Exámenes"
+                  title="Exams"
                   icon="📝"
-                  description="Próximamente verás aquí todos tus exámenes de la plataforma. Mientras tanto, entrá al curso correspondiente desde Mi programa o Mis cursos."
+                  description="Soon you’ll see all your platform exams here. In the meantime, open the matching course from My program or My courses."
                 />
               }
             />
-            <Route
-              path="perfil"
-              element={
-                <PlaceholderPage
-                  title="Mi perfil"
-                  icon="👤"
-                  description="Datos de tu cuenta Moodle, progreso y certificados. Sección en desarrollo."
-                />
-              }
-            />
+            <Route path="perfil" element={<ProfilePage />} />
           </Route>
 
-          {/* REDIRECCIONES LEGACY (Para mantener compatibilidad absoluta) */}
           <Route path="/courses/:id" element={<Navigate to="/app/cursos/:id" replace />} />
           <Route path="/exams/:examId/take" element={<Navigate to="/app/examenes/:examId/take" replace />} />
           <Route path="/dashboard" element={<Navigate to="/app/inicio" replace />} />
           <Route path="/mis-cursos" element={<Navigate to="/app/programa" replace />} />
           <Route path="/mis-cursos/*" element={<Navigate to="/app/programa" replace />} />
 
-          {/* RUTAS ADMIN */}
           <Route path="/admin" element={<AdminLogin />} />
-          <Route path="/admin/dashboard" element={<AdminDashboard />} />
-          <Route path="/admin/carpetas" element={<AdminCourseCatalog />} />
-          <Route path="/admin/microlearning" element={<AdminMicrolearning />} />
+          <Route path="/admin/dashboard" element={<Navigate to="/admin/examenes" replace />} />
 
-          {/* FALLBACK GENERAL */}
+          <Route
+            element={
+              <ProtectedAdminRoute>
+                <AdminLayout />
+              </ProtectedAdminRoute>
+            }
+          >
+            <Route path="/admin/inicio" element={<AdminHome />} />
+            <Route path="/admin/carpetas" element={<AdminCourseCatalog />} />
+            <Route path="/admin/grabaciones" element={<AdminRecordings />} />
+            <Route path="/admin/calendario" element={<AdminCalendar />} />
+            <Route path="/admin/microlearning" element={<AdminMicrolearning />} />
+            <Route path="/admin/examenes" element={<AdminDashboard />} />
+          </Route>
+
           <Route path="*" element={<Navigate to="/" replace />} />
-
-
-         
-
-         
         </Routes>
       </Router>
     </ErrorBoundary>

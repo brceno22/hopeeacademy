@@ -1,4 +1,15 @@
-import { Controller, Get, Post, Param, Body, ParseIntPipe, Headers } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Headers,
+  Param,
+  ParseIntPipe,
+  Post,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { extractOptionalBearerToken } from '../auth/auth-token.util';
+import { SubmitTaskDto } from '../common/dto/moodle-actions.dto';
 import { TasksService } from './tasks.service';
 
 @Controller('tasks')
@@ -13,17 +24,27 @@ export class TasksController {
   @Get(':assignId/status')
   getSubmissionStatus(
     @Param('assignId', ParseIntPipe) assignId: number,
-    @Headers('x-user-token') userToken: string,
+    @Headers('authorization') authHeader: string,
+    @Headers('x-user-token') legacyToken?: string,
   ) {
-    return this.tasksService.getSubmissionStatus(assignId, userToken);
+    const token = extractOptionalBearerToken(authHeader) || legacyToken;
+    if (!token) {
+      throw new UnauthorizedException('Falta el token de autenticación');
+    }
+    return this.tasksService.getSubmissionStatus(assignId, token);
   }
 
   @Post(':assignId/submit')
   submitTask(
     @Param('assignId', ParseIntPipe) assignId: number,
-    @Body() body: { token: string; userId?: number; text?: string; fileName?: string; fileBase64?: string; fileMimeType?: string },
+    @Body() body: SubmitTaskDto,
+    @Headers('authorization') authHeader?: string,
   ) {
-    return this.tasksService.submitTask(assignId, body.token, {
+    const token = body.token || extractOptionalBearerToken(authHeader);
+    if (!token) {
+      throw new UnauthorizedException('Falta el token de autenticación');
+    }
+    return this.tasksService.submitTask(assignId, token, {
       userId: body.userId,
       text: body.text,
       fileName: body.fileName,
@@ -31,5 +52,4 @@ export class TasksController {
       fileMimeType: body.fileMimeType,
     });
   }
-  
 }

@@ -53,7 +53,7 @@ export const ExamTakePage: React.FC = () => {
             })),
         });
       } catch {
-        setError('No se pudo cargar el examen.');
+setError('Could not load the exam.');
       } finally {
         setLoading(false);
       }
@@ -72,7 +72,7 @@ export const ExamTakePage: React.FC = () => {
       });
       setResultado(response.data);
     } catch {
-      setError('Error al enviar el examen.');
+setError('Failed to submit the exam.');
     } finally {
       setIsSubmitting(false);
       setShowConfirm(false);
@@ -80,15 +80,15 @@ export const ExamTakePage: React.FC = () => {
   };
 
   if (loading) {
-    return <p style={{ padding: '40px', textAlign: 'center' }}>Cargando examen...</p>;
+    return <p style={{ padding: '40px', textAlign: 'center' }}>Loading exam...</p>;
   }
 
   if (error || !exam) {
     return (
       <div style={{ padding: '40px', textAlign: 'center' }}>
-        <p style={{ color: '#c62828' }}>{error || 'Examen no encontrado'}</p>
+        <p style={{ color: '#c62828' }}>{error || 'Exam not found'}</p>
         <button onClick={() => navigate(-1)} style={{ marginTop: '16px', padding: '10px 20px' }}>
-          Volver
+          Back
         </button>
       </div>
     );
@@ -100,12 +100,12 @@ export const ExamTakePage: React.FC = () => {
       <div style={{ padding: '40px', textAlign: 'center', fontFamily: 'system-ui' }}>
         <h2 style={{ color: aprobado ? '#2e7d32' : '#c62828' }}>{resultado.message}</h2>
         <p style={{ fontSize: '48px', fontWeight: 'bold' }}>{resultado.score}%</p>
-        <p>{resultado.correct} de {resultado.total} correctas</p>
+        <p>{resultado.correct} of {resultado.total} correct</p>
         <button
           onClick={() => navigate(-1)}
           style={{ marginTop: '24px', background: '#9c27b0', color: '#fff', border: 'none', padding: '12px 24px', borderRadius: '6px', cursor: 'pointer' }}
         >
-          Volver a mis cursos
+          Back to my courses
         </button>
       </div>
     );
@@ -116,15 +116,15 @@ export const ExamTakePage: React.FC = () => {
     const faltantes = exam.questions.length - respondidas;
     return (
       <div style={{ padding: '40px', textAlign: 'center', fontFamily: 'system-ui' }}>
-        <h2>¿Finalizar examen?</h2>
+        <h2>Finish exam?</h2>
         <p>
-          Respondiste {respondidas} de {exam.questions.length}
-          {faltantes > 0 && <span style={{ color: 'red' }}> — faltan {faltantes}</span>}
+          You answered {respondidas} of {exam.questions.length}
+          {faltantes > 0 && <span style={{ color: 'red' }}> — {faltantes} left</span>}
         </p>
         <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', marginTop: '20px' }}>
-          <button onClick={() => setShowConfirm(false)}>Revisar</button>
+          <button onClick={() => setShowConfirm(false)}>Review</button>
           <button onClick={submitExam} disabled={isSubmitting}>
-            {isSubmitting ? 'Enviando...' : 'Enviar'}
+            {isSubmitting ? 'Submitting...' : 'Submit'}
           </button>
         </div>
       </div>
@@ -136,12 +136,12 @@ export const ExamTakePage: React.FC = () => {
   return (
     <div style={{ maxWidth: '800px', margin: '0 auto', padding: '30px', fontFamily: 'system-ui' }}>
       <button onClick={() => navigate(-1)} style={{ marginBottom: '20px', border: '1px solid #ccc', background: '#fff', padding: '8px 14px', borderRadius: '6px', cursor: 'pointer' }}>
-        ⬅ Volver
+        ⬅ Back
       </button>
       <h1 style={{ marginTop: 0 }}>{exam.title}</h1>
       {exam.description && <p style={{ color: '#666' }}>{exam.description}</p>}
       <p style={{ fontWeight: 'bold', color: '#666' }}>
-        Pregunta {currentIndex + 1} de {exam.questions.length}
+        Question {currentIndex + 1} of {exam.questions.length}
       </p>
       <div style={{ background: '#fff', border: '1px solid #ddd', borderRadius: '8px', padding: '24px', marginTop: '16px' }}>
         <h3>{q.text}</h3>
@@ -169,15 +169,15 @@ export const ExamTakePage: React.FC = () => {
         })}
         <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '24px' }}>
           {currentIndex > 0 ? (
-            <button onClick={() => setCurrentIndex((i) => i - 1)}>Anterior</button>
+            <button onClick={() => setCurrentIndex((i) => i - 1)}>Previous</button>
           ) : (
             <span />
           )}
           {currentIndex < exam.questions.length - 1 ? (
-            <button onClick={() => setCurrentIndex((i) => i + 1)}>Siguiente</button>
+            <button onClick={() => setCurrentIndex((i) => i + 1)}>Next</button>
           ) : (
             <button onClick={() => setShowConfirm(true)} style={{ background: '#4caf50', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '6px' }}>
-              Finalizar
+              Finish
             </button>
           )}
         </div>

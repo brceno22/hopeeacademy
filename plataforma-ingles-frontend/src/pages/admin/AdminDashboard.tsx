@@ -1,10 +1,27 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '@/core/api/axios';
+import './admin.css';
 
-interface Option { id?: number; text: string; isCorrect: boolean; }
-interface Question { id?: number; text: string; order: number; options: Option[]; }
-interface Exam { id: number; courseId: number; title: string; description: string; active: boolean; questions: Question[]; }
+interface Option {
+  id?: number;
+  text: string;
+  isCorrect: boolean;
+}
+interface Question {
+  id?: number;
+  text: string;
+  order: number;
+  options: Option[];
+}
+interface Exam {
+  id: number;
+  courseId: number;
+  title: string;
+  description: string;
+  active: boolean;
+  questions: Question[];
+}
 
 const emptyQuestion = (): Question => ({
   text: '',
@@ -38,8 +55,11 @@ export const AdminDashboard: React.FC = () => {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (!adminKey) { navigate('/admin'); return; }
-    fetchExams();
+    if (!adminKey) {
+      navigate('/admin');
+      return;
+    }
+    void fetchExams();
   }, []);
 
   const fetchExams = async () => {
@@ -48,7 +68,7 @@ export const AdminDashboard: React.FC = () => {
       const res = await api.get('/exams', { headers: { 'x-admin-key': adminKey } });
       setExams(res.data);
     } catch {
-      setError('Error al cargar exámenes');
+      setError('Failed to load exams');
     } finally {
       setLoading(false);
     }
@@ -59,30 +79,35 @@ export const AdminDashboard: React.FC = () => {
     setError('');
     try {
       if (view === 'edit' && editingExam.id) {
-        await api.put(`/exams/${editingExam.id}`, editingExam, { headers: { 'x-admin-key': adminKey } });
-        setSuccess('Examen actualizado correctamente ✅');
+        await api.put(`/exams/${editingExam.id}`, editingExam, {
+          headers: { 'x-admin-key': adminKey },
+        });
+        setSuccess('Exam updated successfully');
       } else {
         await api.post('/exams', editingExam, { headers: { 'x-admin-key': adminKey } });
-        setSuccess('Examen creado correctamente ✅');
+        setSuccess('Exam created successfully');
       }
       await fetchExams();
-      setTimeout(() => { setSuccess(''); setView('list'); }, 1500);
+      setTimeout(() => {
+        setSuccess('');
+        setView('list');
+      }, 1500);
     } catch {
-      setError('Error al guardar el examen');
+      setError('Failed to save exam');
     } finally {
       setSaving(false);
     }
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('¿Seguro que querés eliminar este examen?')) return;
+    if (!confirm('Are you sure you want to delete this exam?')) return;
     try {
       await api.delete(`/exams/${id}`, { headers: { 'x-admin-key': adminKey } });
-      setSuccess('Examen eliminado ✅');
+      setSuccess('Exam deleted');
       await fetchExams();
       setTimeout(() => setSuccess(''), 2000);
     } catch {
-      setError('Error al eliminar');
+      setError('Failed to delete');
     }
   };
 
@@ -112,9 +137,10 @@ export const AdminDashboard: React.FC = () => {
     setEditingExam((prev: any) => {
       const questions = [...prev.questions];
       const options = [...questions[qi].options];
-      // Si marcamos isCorrect, desmarcamos las demás
       if (field === 'isCorrect' && value === true) {
-        options.forEach((o, i) => { options[i] = { ...o, isCorrect: i === oi }; });
+        options.forEach((o, i) => {
+          options[i] = { ...o, isCorrect: i === oi };
+        });
       } else {
         options[oi] = { ...options[oi], [field]: value };
       }
@@ -123,65 +149,92 @@ export const AdminDashboard: React.FC = () => {
     });
   };
 
-  const s = {
-    container: { padding: '30px', maxWidth: '1000px', margin: '0 auto', fontFamily: 'system-ui' } as React.CSSProperties,
-    header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' } as React.CSSProperties,
-    btn: (color: string) => ({ background: color, color: 'white', border: 'none', padding: '10px 20px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px' } as React.CSSProperties),
-    card: { background: '#fff', border: '1px solid #ddd', borderRadius: '8px', padding: '20px', marginBottom: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' } as React.CSSProperties,
-    input: { width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '6px', fontSize: '15px', boxSizing: 'border-box' as const, marginBottom: '12px' },
-    label: { display: 'block', fontWeight: 'bold', marginBottom: '6px', color: '#444' } as React.CSSProperties,
-    questionBox: { background: '#f8f9fa', border: '1px solid #ddd', borderRadius: '8px', padding: '20px', marginBottom: '20px' } as React.CSSProperties,
-  };
-
-  // VISTA: Lista de exámenes
   if (view === 'list') {
     return (
-      <div style={s.container}>
-        <div style={s.header}>
-          <h1 style={{ margin: 0 }}>📋 Panel Admin — Exámenes</h1>
-          <div style={{ display: 'flex', gap: '10px' }}>
-            <button onClick={() => navigate('/admin/carpetas')} style={s.btn('#00897b')}>
-              📂 Carpetas
-            </button>
-            <button onClick={() => { setEditingExam(emptyExam()); setView('create'); }} style={s.btn('#1a237e')}>
-              + Nuevo Examen
-            </button>
-            <button onClick={() => { localStorage.removeItem('adminKey'); navigate('/admin'); }} style={s.btn('#dc3545')}>
-              Cerrar Sesión
-            </button>
+      <div className="admin-page">
+        <header
+          className="admin-page__header"
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'flex-start',
+            gap: 12,
+            flexWrap: 'wrap',
+          }}
+        >
+          <div>
+            <h1>Exams</h1>
+            <p>Create and edit platform assessments.</p>
           </div>
-        </div>
+          <button
+            type="button"
+            className="admin-btn primary"
+            onClick={() => {
+              setEditingExam(emptyExam());
+              setView('create');
+            }}
+          >
+            + New exam
+          </button>
+        </header>
 
-        {success && <p style={{ background: '#e8f5e9', color: '#2e7d32', padding: '12px', borderRadius: '6px', marginBottom: '20px' }}>{success}</p>}
-        {error && <p style={{ background: '#fce4ec', color: '#c62828', padding: '12px', borderRadius: '6px', marginBottom: '20px' }}>{error}</p>}
+        {success && <div className="admin-alert ok">{success}</div>}
+        {error && <div className="admin-alert err">{error}</div>}
 
         {loading ? (
-          <p style={{ color: '#666', textAlign: 'center' }}>Cargando exámenes...</p>
+          <p className="page-description">Loading exams…</p>
         ) : exams.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '60px', color: '#999' }}>
-            <p style={{ fontSize: '40px' }}>📝</p>
-            <p>No hay exámenes todavía. ¡Creá el primero!</p>
+          <div className="admin-card">
+            <p className="page-description" style={{ margin: 0 }}>
+              No exams yet. Create the first one.
+            </p>
           </div>
         ) : (
-          exams.map(exam => (
-            <div key={exam.id} style={s.card}>
+          exams.map((exam) => (
+            <div
+              key={exam.id}
+              className="admin-card"
+              style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}
+            >
               <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
                   <h3 style={{ margin: 0 }}>{exam.title}</h3>
-                  <span style={{ background: exam.active ? '#e8f5e9' : '#fce4ec', color: exam.active ? '#2e7d32' : '#c62828', padding: '2px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold' }}>
-                    {exam.active ? 'Activo' : 'Inactivo'}
+                  <span
+                    style={{
+                      background: exam.active
+                        ? 'rgba(16, 185, 129, 0.12)'
+                        : 'rgba(239, 68, 68, 0.1)',
+                      color: exam.active ? '#047857' : '#b91c1c',
+                      padding: '2px 8px',
+                      borderRadius: 6,
+                      fontSize: 12,
+                      fontWeight: 700,
+                    }}
+                  >
+                    {exam.active ? 'Active' : 'Inactive'}
                   </span>
                 </div>
-                <p style={{ margin: 0, color: '#666', fontSize: '14px' }}>
-                  Curso ID: {exam.courseId} · {exam.questions?.length ?? 0} preguntas
+                <p className="page-description" style={{ margin: 0 }}>
+                  Course ID: {exam.courseId} · {exam.questions?.length ?? 0} questions
                 </p>
               </div>
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <button onClick={() => { setEditingExam(exam); setView('edit'); }} style={s.btn('#ff9800')}>
-                  ✏️ Editar
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  type="button"
+                  className="admin-btn accent"
+                  onClick={() => {
+                    setEditingExam(exam);
+                    setView('edit');
+                  }}
+                >
+                  Edit
                 </button>
-                <button onClick={() => handleDelete(exam.id)} style={s.btn('#dc3545')}>
-                  🗑️ Eliminar
+                <button
+                  type="button"
+                  className="admin-btn danger"
+                  onClick={() => void handleDelete(exam.id)}
+                >
+                  Delete
                 </button>
               </div>
             </div>
@@ -191,85 +244,123 @@ export const AdminDashboard: React.FC = () => {
     );
   }
 
-  // VISTA: Crear / Editar examen
   return (
-    <div style={s.container}>
-      <div style={s.header}>
-        <h1 style={{ margin: 0 }}>{view === 'create' ? '➕ Nuevo Examen' : '✏️ Editar Examen'}</h1>
-        <button onClick={() => setView('list')} style={s.btn('#666')}>← Volver</button>
-      </div>
+    <div className="admin-page">
+      <header
+        className="admin-page__header"
+        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}
+      >
+        <div>
+          <h1>{view === 'create' ? 'New exam' : 'Edit exam'}</h1>
+          <p>Basic details and multiple-choice questions.</p>
+        </div>
+        <button type="button" className="admin-btn muted" onClick={() => setView('list')}>
+          ← Back
+        </button>
+      </header>
 
-      {success && <p style={{ background: '#e8f5e9', color: '#2e7d32', padding: '12px', borderRadius: '6px', marginBottom: '20px' }}>{success}</p>}
-      {error && <p style={{ background: '#fce4ec', color: '#c62828', padding: '12px', borderRadius: '6px', marginBottom: '20px' }}>{error}</p>}
+      {success && <div className="admin-alert ok">{success}</div>}
+      {error && <div className="admin-alert err">{error}</div>}
 
-      {/* Datos básicos */}
-      <div style={{ background: '#fff', border: '1px solid #ddd', borderRadius: '8px', padding: '25px', marginBottom: '25px' }}>
-        <h3 style={{ marginTop: 0 }}>Datos del examen</h3>
-
-        <label style={s.label}>Título</label>
-        <input style={s.input} value={editingExam.title} onChange={e => setEditingExam((p: any) => ({ ...p, title: e.target.value }))} placeholder="Ej: Examen Unidad 1 - Verb To Be" />
-
-        <label style={s.label}>Descripción</label>
-        <input style={s.input} value={editingExam.description} onChange={e => setEditingExam((p: any) => ({ ...p, description: e.target.value }))} placeholder="Instrucciones para el alumno" />
-
-        <label style={s.label}>ID del Curso (Moodle)</label>
-        <input style={s.input} type="number" value={editingExam.courseId} onChange={e => setEditingExam((p: any) => ({ ...p, courseId: parseInt(e.target.value) }))} placeholder="Ej: 2" />
-
-        <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
-          <input type="checkbox" checked={editingExam.active} onChange={e => setEditingExam((p: any) => ({ ...p, active: e.target.checked }))} />
-          <span style={{ fontWeight: 'bold' }}>Examen activo (visible para alumnos)</span>
+      <div className="admin-card">
+        <h3>Exam details</h3>
+        <label style={{ display: 'block', fontWeight: 600, marginBottom: 6 }}>Title</label>
+        <input
+          className="admin-input"
+          style={{ width: '100%', boxSizing: 'border-box', marginBottom: 12, minWidth: 0 }}
+          value={editingExam.title}
+          onChange={(e) => setEditingExam((p: Exam) => ({ ...p, title: e.target.value }))}
+          placeholder="E.g.: Unit 1 Exam"
+        />
+        <label style={{ display: 'block', fontWeight: 600, marginBottom: 6 }}>Description</label>
+        <input
+          className="admin-input"
+          style={{ width: '100%', boxSizing: 'border-box', marginBottom: 12, minWidth: 0 }}
+          value={editingExam.description}
+          onChange={(e) => setEditingExam((p: Exam) => ({ ...p, description: e.target.value }))}
+          placeholder="Instructions for the student"
+        />
+        <label style={{ display: 'block', fontWeight: 600, marginBottom: 6 }}>
+          Course ID (Moodle)
+        </label>
+        <input
+          className="admin-input"
+          type="number"
+          style={{ width: '100%', boxSizing: 'border-box', marginBottom: 12, minWidth: 0 }}
+          value={editingExam.courseId}
+          onChange={(e) =>
+            setEditingExam((p: Exam) => ({ ...p, courseId: parseInt(e.target.value, 10) || 0 }))
+          }
+        />
+        <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontWeight: 600 }}>
+          <input
+            type="checkbox"
+            checked={editingExam.active}
+            onChange={(e) => setEditingExam((p: Exam) => ({ ...p, active: e.target.checked }))}
+          />
+          Exam active (visible to students)
         </label>
       </div>
 
-      {/* Preguntas */}
-      <h3>Preguntas ({editingExam.questions.length})</h3>
+      <h3 style={{ color: 'var(--primary-color)' }}>Questions ({editingExam.questions.length})</h3>
 
       {editingExam.questions.map((q: Question, qi: number) => (
-        <div key={qi} style={s.questionBox}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-            <h4 style={{ margin: 0, color: '#1a237e' }}>Pregunta {qi + 1}</h4>
+        <div key={qi} className="admin-card">
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+            <h4 style={{ margin: 0 }}>Question {qi + 1}</h4>
             {editingExam.questions.length > 1 && (
-              <button onClick={() => removeQuestion(qi)} style={{ background: 'transparent', border: '1px solid #dc3545', color: '#dc3545', padding: '4px 10px', borderRadius: '4px', cursor: 'pointer' }}>
-                Eliminar
+              <button type="button" className="admin-btn ghost" onClick={() => removeQuestion(qi)}>
+                Delete
               </button>
             )}
           </div>
-
-          <label style={s.label}>Enunciado</label>
+          <label style={{ display: 'block', fontWeight: 600, marginBottom: 6 }}>Prompt</label>
           <input
-            style={s.input}
+            className="admin-input"
+            style={{ width: '100%', boxSizing: 'border-box', marginBottom: 12, minWidth: 0 }}
             value={q.text}
-            onChange={e => updateQuestion(qi, 'text', e.target.value)}
-            placeholder="Escribí la pregunta acá"
+            onChange={(e) => updateQuestion(qi, 'text', e.target.value)}
+            placeholder="Write the question"
           />
-
-          <label style={s.label}>Opciones (marcá la correcta)</label>
+          <label style={{ display: 'block', fontWeight: 600, marginBottom: 6 }}>
+            Options (mark the correct one)
+          </label>
           {q.options.map((opt, oi) => (
-            <div key={oi} style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
+            <div key={oi} className="admin-form-row" style={{ marginBottom: 8 }}>
               <input
                 type="radio"
                 name={`correct-${qi}`}
                 checked={opt.isCorrect}
                 onChange={() => updateOption(qi, oi, 'isCorrect', true)}
-                style={{ width: '18px', height: '18px', cursor: 'pointer', flexShrink: 0 }}
               />
               <input
-                style={{ ...s.input, marginBottom: 0, flex: 1 }}
+                className="admin-input"
+                style={{ flex: 1, minWidth: 0 }}
                 value={opt.text}
-                onChange={e => updateOption(qi, oi, 'text', e.target.value)}
-                placeholder={`Opción ${oi + 1}`}
+                onChange={(e) => updateOption(qi, oi, 'text', e.target.value)}
+                placeholder={`Option ${oi + 1}`}
               />
             </div>
           ))}
         </div>
       ))}
 
-      <button onClick={addQuestion} style={{ ...s.btn('#9c27b0'), marginBottom: '30px', width: '100%', padding: '14px' }}>
-        + Agregar Pregunta
+      <button
+        type="button"
+        className="admin-btn muted"
+        style={{ width: '100%', marginBottom: 12 }}
+        onClick={addQuestion}
+      >
+        + Add question
       </button>
-
-      <button onClick={handleSave} disabled={saving} style={{ ...s.btn(saving ? '#ccc' : '#2e7d32'), width: '100%', padding: '16px', fontSize: '16px' }}>
-        {saving ? 'Guardando...' : view === 'create' ? '💾 Crear Examen' : '💾 Guardar Cambios'}
+      <button
+        type="button"
+        className="admin-btn primary"
+        style={{ width: '100%' }}
+        disabled={saving}
+        onClick={() => void handleSave()}
+      >
+        {saving ? 'Saving…' : view === 'create' ? 'Create exam' : 'Save changes'}
       </button>
     </div>
   );
