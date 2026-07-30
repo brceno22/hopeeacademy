@@ -7,14 +7,16 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Between, In, Repository } from 'typeorm';
 import { CourseFolder } from '../courses/entities/course-folder.entity';
-import { CourseFolderLink } from '../courses/entities/course-folder-link.entity';
+import { ProgramEnrollmentSyncService } from '../courses/program-enrollment-sync.service';
 import { MoodleService } from '../moodle/moodle.service';
 import { CalendarEvent } from './calendar-event.entity';
+import { dateStringInAppTz } from '../common/timezone.util';
 import {
   buildIcsCalendar,
   CalendarOccurrence,
   expandShiftOccurrences,
   googleCalendarTemplateUrl,
+  occurrenceStatus,
 } from './calendar.util';
 import {
   CreateCalendarEventDto,
@@ -25,6 +27,7 @@ import {
 } from './dto/calendar.dto';
 import { ScheduleShift } from './schedule-shift.entity';
 import { ShiftEnrollment } from './shift-enrollment.entity';
+import { ShiftTeacher } from './shift-teacher.entity';
 
 @Injectable()
 export class CalendarService {
@@ -33,13 +36,14 @@ export class CalendarService {
     private readonly shiftRepo: Repository<ScheduleShift>,
     @InjectRepository(ShiftEnrollment)
     private readonly enrollmentRepo: Repository<ShiftEnrollment>,
+    @InjectRepository(ShiftTeacher)
+    private readonly teacherRepo: Repository<ShiftTeacher>,
     @InjectRepository(CalendarEvent)
     private readonly eventRepo: Repository<CalendarEvent>,
     @InjectRepository(CourseFolder)
     private readonly folderRepo: Repository<CourseFolder>,
-    @InjectRepository(CourseFolderLink)
-    private readonly linkRepo: Repository<CourseFolderLink>,
     private readonly moodleService: MoodleService,
+    private readonly programSync: ProgramEnrollmentSyncService,
   ) {}
 
   private serializeShift(s: ScheduleShift) {
@@ -151,44 +155,152 @@ export class CalendarService {
 
   // ——— Enrollments ———
 
+  private async enrichMembers<T extends { moodleUserId: number }>(
+    rows: T[],
+  ): Promise<
+    Array<
+      T & {
+        fullName: string;
+        email: string | null;
+        username: string | null;
+      }
+    >
+  > {
+    const ids = rows.map((r) => r.moodleUserId);
+    let nameMap = new Map<
+      number,
+      { fullName: string; email: string | null; username: string | null }
+    >();
+    try {
+      const users = await this.moodleService.getUsersByIds(ids);
+      nameMap = new Map(
+        users.map((u) => [
+          u.id,
+          {
+            fullName: u.fullname || `User ${u.id}`,
+            email: u.email || null,
+            username: u.username || null,
+          },
+        ]),
+      );
+    } catch {
+      // optional
+    }
+    return rows.map((r) => {
+      const info = nameMap.get(r.moodleUserId);
+      return {
+        ...r,
+        fullName: info?.fullName || `User ${r.moodleUserId}`,
+        email: info?.email ?? null,
+        username: info?.username ?? null,
+      };
+    });
+  }
+
   async listEnrollments(shiftId: number) {
     await this.getShiftOrFail(shiftId);
     const rows = await this.enrollmentRepo.find({
       where: { shiftId },
       order: { createdAt: 'DESC' },
     });
-    return rows.map((e) => ({
+    const base = rows.map((e) => ({
       id: e.id,
       shiftId: e.shiftId,
       moodleUserId: e.moodleUserId,
       assignedByUserId: e.assignedByUserId,
       createdAt: e.createdAt,
     }));
+    return this.enrichMembers(base);
   }
 
   async enroll(shiftId: number, dto: EnrollDto, assignedByUserId?: number | null) {
-    await this.getShiftOrFail(shiftId);
+    const shift = await this.getShiftOrFail(shiftId);
     const existing = await this.enrollmentRepo.findOne({
       where: { shiftId, moodleUserId: dto.moodleUserId },
     });
     if (existing) return existing;
 
-    return this.enrollmentRepo.save(
+    const saved = await this.enrollmentRepo.save(
       this.enrollmentRepo.create({
         shiftId,
         moodleUserId: dto.moodleUserId,
         assignedByUserId: assignedByUserId ?? null,
       }),
     );
+
+    try {
+      await this.programSync.enrolUserInProgram(shift.folderId, dto.moodleUserId, 'student');
+    } catch (err) {
+      await this.enrollmentRepo.remove(saved);
+      throw err;
+    }
+
+    return saved;
   }
 
   async unenroll(shiftId: number, moodleUserId: number) {
+    const shift = await this.getShiftOrFail(shiftId);
     const row = await this.enrollmentRepo.findOne({
       where: { shiftId, moodleUserId },
     });
     if (!row) throw new NotFoundException('Alumno no está en este turno');
     await this.enrollmentRepo.remove(row);
+    await this.programSync.unenrolUserFromProgramIfOrphan(shift.folderId, moodleUserId, 'student');
     return { message: 'Alumno quitado del turno' };
+  }
+
+  // ——— Teachers ———
+
+  async listTeachers(shiftId: number) {
+    await this.getShiftOrFail(shiftId);
+    const rows = await this.teacherRepo.find({
+      where: { shiftId },
+      order: { createdAt: 'DESC' },
+    });
+    const base = rows.map((t) => ({
+      id: t.id,
+      shiftId: t.shiftId,
+      moodleUserId: t.moodleUserId,
+      assignedByUserId: t.assignedByUserId,
+      createdAt: t.createdAt,
+    }));
+    return this.enrichMembers(base);
+  }
+
+  async assignTeacher(shiftId: number, dto: EnrollDto, assignedByUserId?: number | null) {
+    const shift = await this.getShiftOrFail(shiftId);
+    const existing = await this.teacherRepo.findOne({
+      where: { shiftId, moodleUserId: dto.moodleUserId },
+    });
+    if (existing) return existing;
+
+    const saved = await this.teacherRepo.save(
+      this.teacherRepo.create({
+        shiftId,
+        moodleUserId: dto.moodleUserId,
+        assignedByUserId: assignedByUserId ?? null,
+      }),
+    );
+
+    try {
+      await this.programSync.enrolUserInProgram(shift.folderId, dto.moodleUserId, 'teacher');
+    } catch (err) {
+      await this.teacherRepo.remove(saved);
+      throw err;
+    }
+
+    return saved;
+  }
+
+  async unassignTeacher(shiftId: number, moodleUserId: number) {
+    const shift = await this.getShiftOrFail(shiftId);
+    const row = await this.teacherRepo.findOne({
+      where: { shiftId, moodleUserId },
+    });
+    if (!row) throw new NotFoundException('Profesor no está asignado a este turno');
+    await this.teacherRepo.remove(row);
+    await this.programSync.unenrolUserFromProgramIfOrphan(shift.folderId, moodleUserId, 'teacher');
+    return { message: 'Profesor quitado del turno' };
   }
 
   // ——— Events ———
@@ -287,34 +399,25 @@ export class CalendarService {
 
   // ——— Teacher permissions ———
 
-  async teacherCanManageShift(token: string, userId: number, shift: ScheduleShift): Promise<boolean> {
-    if (shift.moodleCourseId) {
-      return this.moodleService.isTeacherInCourse(token, shift.moodleCourseId, userId);
-    }
-    const links = await this.linkRepo.find({ where: { folderId: shift.folderId } });
-    if (!links.length) return false;
-    for (const link of links) {
-      if (await this.moodleService.isTeacherInCourse(token, link.moodleCourseId, userId)) {
-        return true;
-      }
-    }
-    return false;
+  async teacherCanManageShift(_token: string, userId: number, shift: ScheduleShift): Promise<boolean> {
+    const row = await this.teacherRepo.findOne({
+      where: { shiftId: shift.id, moodleUserId: userId },
+    });
+    return Boolean(row);
   }
 
   async listTeacherShifts(token: string) {
     const userId = await this.moodleService.getUserIdFromToken(token);
-    const shifts = await this.shiftRepo.find({
-      where: { isActive: true },
-      relations: ['folder'],
-      order: { name: 'ASC' },
+    const assignments = await this.teacherRepo.find({
+      where: { moodleUserId: userId },
+      relations: ['shift', 'shift.folder'],
     });
-    const out: ReturnType<CalendarService['serializeShift']>[] = [];
-    for (const s of shifts) {
-      if (await this.teacherCanManageShift(token, userId, s)) {
-        out.push(this.serializeShift(s));
-      }
-    }
-    return out;
+
+    return assignments
+      .map((a) => a.shift)
+      .filter((s): s is ScheduleShift => Boolean(s?.isActive))
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map((s) => this.serializeShift(s));
   }
 
   async assertTeacherShift(token: string, shiftId: number) {
@@ -326,7 +429,7 @@ export class CalendarService {
     return { userId, shift };
   }
 
-  // ——— Student calendar ———
+  // ——— Student / teacher calendar ———
 
   private parseRange(from?: string, to?: string) {
     if (!from || !to || !/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) {
@@ -336,22 +439,45 @@ export class CalendarService {
     return { from, to };
   }
 
-  async getMyOccurrences(token: string, from?: string, to?: string): Promise<CalendarOccurrence[]> {
-    const userId = await this.moodleService.getUserIdFromToken(token);
-    const range = this.parseRange(from, to);
+  private async loadActiveShiftsForUser(userId: number): Promise<ScheduleShift[]> {
+    const [enrollments, assignments] = await Promise.all([
+      this.enrollmentRepo.find({
+        where: { moodleUserId: userId },
+        relations: ['shift', 'shift.folder'],
+      }),
+      this.teacherRepo.find({
+        where: { moodleUserId: userId },
+        relations: ['shift', 'shift.folder'],
+      }),
+    ]);
 
-    const enrollments = await this.enrollmentRepo.find({
+    const byId = new Map<number, ScheduleShift>();
+    for (const row of [...enrollments, ...assignments]) {
+      const shift = row.shift;
+      if (shift?.isActive) byId.set(shift.id, shift);
+    }
+    return [...byId.values()];
+  }
+
+  private async loadActiveTeacherShifts(userId: number): Promise<ScheduleShift[]> {
+    const assignments = await this.teacherRepo.find({
       where: { moodleUserId: userId },
       relations: ['shift', 'shift.folder'],
     });
-
-    const activeShifts = enrollments
-      .map((e) => e.shift)
+    return assignments
+      .map((a) => a.shift)
       .filter((s): s is ScheduleShift => Boolean(s?.isActive));
+  }
 
+  /** Expande turnos recurrentes + eventos one-off en el rango. */
+  async buildOccurrencesForShifts(
+    shifts: ScheduleShift[],
+    from: string,
+    to: string,
+  ): Promise<CalendarOccurrence[]> {
     const occurrences: CalendarOccurrence[] = [];
 
-    for (const shift of activeShifts) {
+    for (const shift of shifts) {
       occurrences.push(
         ...expandShiftOccurrences({
           shiftId: shift.id,
@@ -365,16 +491,16 @@ export class CalendarService {
           endTime: shift.endTime,
           validFrom: shift.validFrom,
           validTo: shift.validTo,
-          from: range.from,
-          to: range.to,
+          from,
+          to,
         }),
       );
     }
 
-    const shiftIds = activeShifts.map((s) => s.id);
+    const shiftIds = shifts.map((s) => s.id);
     if (shiftIds.length) {
-      const fromDate = new Date(`${range.from}T00:00:00.000Z`);
-      const toDate = new Date(`${range.to}T23:59:59.999Z`);
+      const fromDate = new Date(`${from}T00:00:00.000Z`);
+      const toDate = new Date(`${to}T23:59:59.999Z`);
       // Ampliar un día por timezone Guayaquil (UTC-5)
       fromDate.setUTCHours(fromDate.getUTCHours() - 5);
       toDate.setUTCHours(toDate.getUTCHours() + 5);
@@ -406,10 +532,45 @@ export class CalendarService {
     }
 
     occurrences.sort((a, b) => a.startsAt.localeCompare(b.startsAt));
+    return occurrences;
+  }
+
+  async getMyOccurrences(token: string, from?: string, to?: string): Promise<CalendarOccurrence[]> {
+    const userId = await this.moodleService.getUserIdFromToken(token);
+    const range = this.parseRange(from, to);
+    const activeShifts = await this.loadActiveShiftsForUser(userId);
+    const occurrences = await this.buildOccurrencesForShifts(
+      activeShifts,
+      range.from,
+      range.to,
+    );
     return occurrences.map((o) => ({
       ...o,
       googleUrl: googleCalendarTemplateUrl(o),
-    })) as CalendarOccurrence[];
+    }));
+  }
+
+  async getTeacherToday(token: string, now: Date = new Date()): Promise<CalendarOccurrence[]> {
+    const userId = await this.moodleService.getUserIdFromToken(token);
+    const today = dateStringInAppTz(now);
+    const shifts = await this.loadActiveTeacherShifts(userId);
+    if (!shifts.length) return [];
+
+    const occurrences = await this.buildOccurrencesForShifts(shifts, today, today);
+    const withStatus = occurrences.map((o) => ({
+      ...o,
+      status: occurrenceStatus(o.startsAt, o.endsAt, now),
+      googleUrl: googleCalendarTemplateUrl(o),
+    }));
+
+    const rank = { live: 0, upcoming: 1, done: 2 } as const;
+    withStatus.sort((a, b) => {
+      const ra = rank[a.status];
+      const rb = rank[b.status];
+      if (ra !== rb) return ra - rb;
+      return a.startsAt.localeCompare(b.startsAt);
+    });
+    return withStatus;
   }
 
   async getMyIcs(token: string, from?: string, to?: string): Promise<string> {

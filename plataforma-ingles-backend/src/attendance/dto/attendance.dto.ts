@@ -5,9 +5,9 @@ export class CreateAttendanceSessionDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  moodleCourseId!: number;
+  shiftId!: number;
 
-  /** YYYY-MM-DD; si no se envía, usa hoy (UTC-3 / local server date) */
+  /** YYYY-MM-DD; si no se envía, usa hoy (APP_TZ) */
   @IsOptional()
   @IsString()
   sessionDate?: string;
@@ -20,4 +20,9 @@ export class CreateAttendanceSessionDto {
   @IsOptional()
   @IsBoolean()
   open?: boolean;
+}
+
+export class MarkAttendanceDto {
+  @IsBoolean()
+  present!: boolean;
 }

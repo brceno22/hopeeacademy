@@ -45,8 +45,10 @@ import { UsersModule } from './users/users.module';
           password,
           database: config.get<string>('DB_NAME', 'plataforma_ingles'),
           entities: [__dirname + '/**/*.entity{.ts,.js}'],
-          // Solo auto-sync si DB_SYNC=true (default true en local para MVP)
-          synchronize: config.get<string>('DB_SYNC', 'true') === 'true',
+          // Solo auto-sync si DB_SYNC=true (default false — usar migrations)
+          synchronize: config.get<string>('DB_SYNC', 'false') === 'true',
+          migrations: [__dirname + '/migrations/*{.ts,.js}'],
+          migrationsRun: false,
         };
       },
       inject: [ConfigService],

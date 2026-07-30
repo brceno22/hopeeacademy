@@ -69,8 +69,12 @@ export const ForumView: React.FC<ForumViewProps> = ({ forumId, courseId }) => {
       setNewSubject('');
       setNewMessage('');
       await fetchDiscussions();
-    } catch {
-      alert('Failed to create the topic. Check your connection.');
+    } catch (err: unknown) {
+      const raw =
+        (err as { response?: { data?: { message?: string | string[] } } })?.response?.data
+          ?.message || 'Failed to create the topic.';
+      const msg = Array.isArray(raw) ? raw.join(', ') : String(raw);
+      alert(msg);
     } finally {
       setIsSubmitting(false);
     }

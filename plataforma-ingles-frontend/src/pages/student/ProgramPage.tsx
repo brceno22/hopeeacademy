@@ -79,8 +79,8 @@ export const ProgramPage: React.FC = () => {
     return (
       <EmptyState
         icon="🗂️"
-        title="No levels configured"
-        description="Your academy hasn’t set up levels yet (B1, B2…). Meanwhile, you can view all your courses under My courses."
+        title="No programs available"
+        description="You’re not enrolled in any program courses yet. Ask your academy to assign you to a classroom, or open My courses."
         actionLabel="Go to my courses"
         onAction={() => navigate('/app/cursos')}
       />
@@ -94,15 +94,14 @@ export const ProgramPage: React.FC = () => {
     <div className="fade-in-page">
       <div className="program-hero">
         <p className="program-hero__desc">
-          Level <strong>{activeLevel?.name}</strong> — pick a class or course to continue your
-          path.
+          <strong>{activeLevel?.name}</strong> — pick a class or course to continue your path.
         </p>
-        <span className="program-level-tag">📚 Module {activeLevel?.name}</span>
+        <span className="program-level-tag">📚 {activeLevel?.name}</span>
       </div>
 
       {classes.length > 0 && (
         <>
-          <h3 className="section-title">Classes in this level</h3>
+          <h3 className="section-title">Classes</h3>
           <div className="program-class-grid">
             {classes.map((cls: CourseFolderNode) => {
               const courseCount = (cls.courses?.length ?? 0) + countCoursesInSubtree(cls);
@@ -147,7 +146,7 @@ export const ProgramPage: React.FC = () => {
 
       {coursesInLevel.length > 0 && (
         <>
-          <h3 className="section-title">Courses in this level</h3>
+          <h3 className="section-title">Courses</h3>
           <div className="program-class-grid">
             {coursesInLevel.map((c: MoodleCourse) => (
               <CourseTile
@@ -164,8 +163,8 @@ export const ProgramPage: React.FC = () => {
       {classes.length === 0 && coursesInLevel.length === 0 && (
         <EmptyState
           icon="📭"
-          title="Empty level"
-          description="This level doesn’t have any classes or courses assigned yet."
+          title="Nothing here yet"
+          description="There are no classes or courses available in this program for your account."
         />
       )}
     </div>

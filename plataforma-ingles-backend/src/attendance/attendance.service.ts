@@ -1,19 +1,19 @@
-import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import {
   BadRequestException,
-  ConflictException,
   ForbiddenException,
-  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import type { Cache } from 'cache-manager';
 import { In, Repository } from 'typeorm';
+import { CalendarService } from '../calendar/calendar.service';
+import { ScheduleShift } from '../calendar/schedule-shift.entity';
+import { ShiftEnrollment } from '../calendar/shift-enrollment.entity';
+import { dateStringInAppTz } from '../common/timezone.util';
 import { MoodleService } from '../moodle/moodle.service';
-import { AttendanceCheckIn } from './attendance-checkin.entity';
+import { AttendanceCheckIn, AttendanceRecordStatus } from './attendance-checkin.entity';
 import { AttendanceSession } from './attendance-session.entity';
-import { CreateAttendanceSessionDto } from './dto/attendance.dto';
+import { CreateAttendanceSessionDto, MarkAttendanceDto } from './dto/attendance.dto';
 
 @Injectable()
 export class AttendanceService {
@@ -22,17 +22,16 @@ export class AttendanceService {
     private readonly sessionRepo: Repository<AttendanceSession>,
     @InjectRepository(AttendanceCheckIn)
     private readonly checkInRepo: Repository<AttendanceCheckIn>,
+    @InjectRepository(ScheduleShift)
+    private readonly shiftRepo: Repository<ScheduleShift>,
+    @InjectRepository(ShiftEnrollment)
+    private readonly enrollmentRepo: Repository<ShiftEnrollment>,
+    private readonly calendarService: CalendarService,
     private readonly moodleService: MoodleService,
-    @Inject(CACHE_MANAGER) private readonly cache: Cache,
   ) {}
 
   private todayDateString(): string {
-    // Fecha local del servidor (América/Argentina en la mayoría de deploys locales)
-    const now = new Date();
-    const y = now.getFullYear();
-    const m = String(now.getMonth() + 1).padStart(2, '0');
-    const d = String(now.getDate()).padStart(2, '0');
-    return `${y}-${m}-${d}`;
+    return dateStringInAppTz();
   }
 
   private normalizeDate(input?: string): string {
@@ -43,58 +42,28 @@ export class AttendanceService {
     return input;
   }
 
-  private async assertTeacher(token: string, courseId: number, userId: number): Promise<void> {
-    const cacheKey = `att:teacher:${userId}:${courseId}`;
-    const cached = await this.cache.get<boolean>(cacheKey);
-    if (cached === true) return;
-    if (cached === false) {
-      throw new ForbiddenException('Solo el profesor del curso puede gestionar la asistencia');
-    }
-
-    const ok = await this.moodleService.isTeacherInCourse(token, courseId, userId);
-    await this.cache.set(cacheKey, ok, 90_000);
-    if (!ok) {
-      throw new ForbiddenException('Solo el profesor del curso puede gestionar la asistencia');
-    }
+  private isPresent(record: AttendanceCheckIn | undefined): boolean {
+    return record?.status === 'present';
   }
 
-  async getTeacherCourses(token: string) {
-    const userId = await this.moodleService.getUserIdFromToken(token);
-    const cacheKey = `att:teacher-courses:${userId}`;
-    const cached = await this.cache.get<Array<{ id: number; name: string }>>(cacheKey);
-    if (cached) return cached;
-
-    const courses = await this.moodleService.getUserCourses(token, userId);
-    const teacherCourses: Array<{ id: number; name: string }> = [];
-
-    for (const course of courses) {
-      const ok = await this.moodleService.isTeacherInCourse(token, course.id, userId);
-      await this.cache.set(`att:teacher:${userId}:${course.id}`, ok, 90_000);
-      if (ok) {
-        teacherCourses.push({
-          id: course.id,
-          name: course.displayname || course.fullname || course.shortname || `Curso ${course.id}`,
-        });
-      }
-    }
-
-    await this.cache.set(cacheKey, teacherCourses, 90_000);
-    return teacherCourses;
+  async getTeacherShifts(token: string) {
+    return this.calendarService.listTeacherShifts(token);
   }
 
-  async listTeacherSessions(token: string, courseId: number) {
-    const userId = await this.moodleService.getUserIdFromToken(token);
-    await this.assertTeacher(token, courseId, userId);
+  async listTeacherSessions(token: string, shiftId: number) {
+    await this.calendarService.assertTeacherShift(token, shiftId);
 
     const sessions = await this.sessionRepo.find({
-      where: { moodleCourseId: courseId },
+      where: { shiftId },
       order: { sessionDate: 'DESC' },
     });
 
     const counts = await Promise.all(
       sessions.map(async (s) => ({
         sessionId: s.id,
-        count: await this.checkInRepo.count({ where: { sessionId: s.id } }),
+        count: await this.checkInRepo.count({
+          where: { sessionId: s.id, status: 'present' },
+        }),
       })),
     );
     const countMap = new Map(counts.map((c) => [c.sessionId, c.count]));
@@ -106,25 +75,32 @@ export class AttendanceService {
   }
 
   async createOrGetSession(token: string, dto: CreateAttendanceSessionDto) {
-    const userId = await this.moodleService.getUserIdFromToken(token);
-    await this.assertTeacher(token, dto.moodleCourseId, userId);
-
+    const { shift } = await this.calendarService.assertTeacherShift(token, dto.shiftId);
     const sessionDate = this.normalizeDate(dto.sessionDate);
+
     let session = await this.sessionRepo.findOne({
-      where: { moodleCourseId: dto.moodleCourseId, sessionDate },
+      where: { shiftId: dto.shiftId, sessionDate },
     });
 
     if (!session) {
-      session = this.sessionRepo.create({
-        moodleCourseId: dto.moodleCourseId,
-        sessionDate,
-        title: dto.title?.trim() || `Clase ${sessionDate}`,
-        status: 'closed',
-        openedByUserId: null,
-        openedAt: null,
-        closedAt: null,
-      });
-      session = await this.sessionRepo.save(session);
+      try {
+        session = this.sessionRepo.create({
+          shiftId: dto.shiftId,
+          moodleCourseId: shift.moodleCourseId,
+          sessionDate,
+          title: dto.title?.trim() || shift.name || `Clase ${sessionDate}`,
+          status: 'closed',
+          openedByUserId: null,
+          openedAt: null,
+          closedAt: null,
+        });
+        session = await this.sessionRepo.save(session);
+      } catch (err: unknown) {
+        session = await this.sessionRepo.findOne({
+          where: { shiftId: dto.shiftId, sessionDate },
+        });
+        if (!session) throw err;
+      }
     } else if (dto.title?.trim()) {
       session.title = dto.title.trim();
       session = await this.sessionRepo.save(session);
@@ -140,7 +116,7 @@ export class AttendanceService {
   async openSession(token: string, sessionId: number) {
     const userId = await this.moodleService.getUserIdFromToken(token);
     const session = await this.findSessionOrFail(sessionId);
-    await this.assertTeacher(token, session.moodleCourseId, userId);
+    await this.calendarService.assertTeacherShift(token, session.shiftId);
 
     session.status = 'open';
     session.openedByUserId = userId;
@@ -151,9 +127,10 @@ export class AttendanceService {
   }
 
   async closeSession(token: string, sessionId: number) {
-    const userId = await this.moodleService.getUserIdFromToken(token);
     const session = await this.findSessionOrFail(sessionId);
-    await this.assertTeacher(token, session.moodleCourseId, userId);
+    const { userId } = await this.calendarService.assertTeacherShift(token, session.shiftId);
+
+    await this.finalizeAbsences(session, userId);
 
     session.status = 'closed';
     session.closedAt = new Date();
@@ -161,142 +138,188 @@ export class AttendanceService {
     return this.serializeSession(saved);
   }
 
-  async getSessionRoster(token: string, sessionId: number) {
-    const userId = await this.moodleService.getUserIdFromToken(token);
-    const session = await this.findSessionOrFail(sessionId);
-    await this.assertTeacher(token, session.moodleCourseId, userId);
+  /** Alumnos sin registro quedan ausentes al cerrar. */
+  private async finalizeAbsences(session: AttendanceSession, markedByUserId: number) {
+    const enrollments = await this.enrollmentRepo.find({
+      where: { shiftId: session.shiftId },
+    });
+    if (!enrollments.length) return;
 
-    const enrolled = await this.moodleService.getEnrolledUsers(token, session.moodleCourseId);
-    const students = enrolled.filter((u) => {
-      if (this.moodleService.hasTeacherRole(u.roles)) return false;
-      return this.moodleService.isStudentRole(u.roles);
+    const existing = await this.checkInRepo.find({ where: { sessionId: session.id } });
+    const haveRecord = new Set(existing.map((c) => c.moodleUserId));
+
+    const toCreate = enrollments
+      .filter((e) => !haveRecord.has(e.moodleUserId))
+      .map((e) =>
+        this.checkInRepo.create({
+          sessionId: session.id,
+          moodleUserId: e.moodleUserId,
+          status: 'absent' as AttendanceRecordStatus,
+          markedByUserId,
+        }),
+      );
+
+    if (toCreate.length) {
+      await this.checkInRepo.save(toCreate);
+    }
+  }
+
+  async getSessionRoster(token: string, sessionId: number) {
+    const session = await this.findSessionOrFail(sessionId);
+    await this.calendarService.assertTeacherShift(token, session.shiftId);
+
+    const shift = await this.shiftRepo.findOne({
+      where: { id: session.shiftId },
+      relations: ['folder'],
+    });
+
+    const enrollments = await this.enrollmentRepo.find({
+      where: { shiftId: session.shiftId },
+      order: { createdAt: 'ASC' },
     });
 
     const checkIns = await this.checkInRepo.find({ where: { sessionId } });
     const checkInMap = new Map(checkIns.map((c) => [c.moodleUserId, c]));
 
-    const roster = students.map((s) => {
-      const checkIn = checkInMap.get(s.id);
+    const userIds = enrollments.map((e) => e.moodleUserId);
+    let nameMap = new Map<number, { fullName: string; email: string | null }>();
+    try {
+      const users = await this.moodleService.getUsersByIds(userIds, token);
+      nameMap = new Map(
+        users.map((u) => [
+          u.id,
+          {
+            fullName: u.fullname || `User ${u.id}`,
+            email: u.email || null,
+          },
+        ]),
+      );
+    } catch {
+      // Moodle lookup optional — fall back to ids
+    }
+
+    const roster = enrollments.map((e) => {
+      const checkIn = checkInMap.get(e.moodleUserId);
+      const info = nameMap.get(e.moodleUserId);
+      const present = this.isPresent(checkIn);
       return {
-        moodleUserId: s.id,
-        fullName: s.fullname || `${s.firstname || ''} ${s.lastname || ''}`.trim() || s.username,
-        email: s.email || null,
-        present: Boolean(checkIn),
+        moodleUserId: e.moodleUserId,
+        fullName: info?.fullName || `User ${e.moodleUserId}`,
+        email: info?.email ?? null,
+        status: (checkIn?.status as AttendanceRecordStatus | undefined) ?? null,
+        present,
         checkedInAt: checkIn?.checkedInAt ?? null,
+        markedByUserId: checkIn?.markedByUserId ?? null,
       };
     });
 
-    roster.sort((a, b) => Number(b.present) - Number(a.present) || (a.fullName || '').localeCompare(b.fullName || ''));
+    roster.sort(
+      (a, b) =>
+        Number(b.present) - Number(a.present) ||
+        (a.fullName || '').localeCompare(b.fullName || ''),
+    );
 
     return {
       session: this.serializeSession(session),
+      shift: shift
+        ? {
+            id: shift.id,
+            name: shift.name,
+            folderName: shift.folder?.name ?? null,
+            meetUrl: shift.meetUrl,
+            startTime: shift.startTime,
+            endTime: shift.endTime,
+          }
+        : null,
       presentCount: roster.filter((r) => r.present).length,
       absentCount: roster.filter((r) => !r.present).length,
       roster,
     };
   }
 
-  async getOpenSessionsForStudent(token: string) {
-    const userId = await this.moodleService.getUserIdFromToken(token);
-    const courses = await this.moodleService.getUserCourses(token, userId);
-    if (!courses.length) return [];
-
-    const courseIds = courses.map((c) => c.id);
-    const courseNameMap = new Map(
-      courses.map((c) => [
-        c.id,
-        c.displayname || c.fullname || c.shortname || `Curso ${c.id}`,
-      ]),
-    );
-
-    const openSessions = await this.sessionRepo.find({
-      where: { moodleCourseId: In(courseIds), status: 'open' },
-      order: { openedAt: 'DESC' },
-    });
-
-    const myCheckIns = openSessions.length
-      ? await this.checkInRepo.find({
-          where: {
-            sessionId: In(openSessions.map((s) => s.id)),
-            moodleUserId: userId,
-          },
-        })
-      : [];
-    const checkedSet = new Set(myCheckIns.map((c) => c.sessionId));
-
-    return openSessions.map((s) => ({
-      ...this.serializeSession(s),
-      courseName: courseNameMap.get(s.moodleCourseId) || `Curso ${s.moodleCourseId}`,
-      alreadyCheckedIn: checkedSet.has(s.id),
-    }));
-  }
-
-  async checkIn(token: string, sessionId: number) {
-    const userId = await this.moodleService.getUserIdFromToken(token);
+  async markAttendance(
+    token: string,
+    sessionId: number,
+    moodleUserId: number,
+    dto: MarkAttendanceDto,
+  ) {
     const session = await this.findSessionOrFail(sessionId);
+    const { userId } = await this.calendarService.assertTeacherShift(token, session.shiftId);
 
     if (session.status !== 'open') {
-      throw new BadRequestException('La asistencia de esta clase está cerrada');
+      throw new BadRequestException(
+        'La asistencia debe estar abierta para marcar presente/ausente',
+      );
     }
 
-    const enrolled = await this.moodleService.isEnrolledInCourse(token, session.moodleCourseId, userId);
-    if (!enrolled) {
-      throw new ForbiddenException('No estás matriculado en este curso');
-    }
-
-    // Profesores no hacen check-in de alumno
-    if (await this.moodleService.isTeacherInCourse(token, session.moodleCourseId, userId)) {
-      throw new ForbiddenException('Los profesores no marcan asistencia como alumnos');
-    }
-
-    const existing = await this.checkInRepo.findOne({
-      where: { sessionId, moodleUserId: userId },
+    const enrolled = await this.enrollmentRepo.findOne({
+      where: { shiftId: session.shiftId, moodleUserId },
     });
-    if (existing) {
-      throw new ConflictException('Ya marcaste presente en esta clase');
+    if (!enrolled) {
+      throw new ForbiddenException('El alumno no está matriculado en este turno');
     }
 
-    const saved = await this.checkInRepo.save(
-      this.checkInRepo.create({ sessionId, moodleUserId: userId }),
-    );
+    const status: AttendanceRecordStatus = dto.present ? 'present' : 'absent';
+    const existing = await this.checkInRepo.findOne({
+      where: { sessionId, moodleUserId },
+    });
 
-    return {
-      message: 'Asistencia registrada',
-      checkIn: {
-        id: saved.id,
-        sessionId: saved.sessionId,
-        moodleUserId: saved.moodleUserId,
-        checkedInAt: saved.checkedInAt,
-      },
-      session: this.serializeSession(session),
-    };
+    if (existing) {
+      existing.status = status;
+      existing.markedByUserId = userId;
+      await this.checkInRepo.save(existing);
+    } else {
+      await this.checkInRepo.save(
+        this.checkInRepo.create({
+          sessionId,
+          moodleUserId,
+          status,
+          markedByUserId: userId,
+        }),
+      );
+    }
+
+    return this.getSessionRoster(token, sessionId);
   }
 
   async getMyHistory(token: string) {
     const userId = await this.moodleService.getUserIdFromToken(token);
-    const checkIns = await this.checkInRepo.find({
+
+    const enrollments = await this.enrollmentRepo.find({
       where: { moodleUserId: userId },
-      relations: ['session'],
-      order: { checkedInAt: 'DESC' },
+    });
+    const shiftIds = enrollments.map((e) => e.shiftId);
+    if (!shiftIds.length) return [];
+
+    const closedSessions = await this.sessionRepo.find({
+      where: { shiftId: In(shiftIds), status: 'closed' },
+      relations: ['shift', 'shift.folder'],
+      order: { sessionDate: 'DESC' },
       take: 50,
     });
+    if (!closedSessions.length) return [];
 
-    const courses = await this.moodleService.getUserCourses(token, userId);
-    const courseNameMap = new Map(
-      courses.map((c) => [
-        c.id,
-        c.displayname || c.fullname || c.shortname || `Curso ${c.id}`,
-      ]),
-    );
+    const records = await this.checkInRepo.find({
+      where: {
+        moodleUserId: userId,
+        sessionId: In(closedSessions.map((s) => s.id)),
+      },
+    });
+    const bySession = new Map(records.map((r) => [r.sessionId, r]));
 
-    return checkIns.map((c) => ({
-      id: c.id,
-      checkedInAt: c.checkedInAt,
-      session: c.session ? this.serializeSession(c.session) : null,
-      courseName: c.session
-        ? courseNameMap.get(c.session.moodleCourseId) || `Curso ${c.session.moodleCourseId}`
-        : null,
-    }));
+    return closedSessions.map((session) => {
+      const record = bySession.get(session.id);
+      const status: AttendanceRecordStatus = record?.status === 'present' ? 'present' : 'absent';
+      return {
+        id: record?.id ?? session.id,
+        status,
+        present: status === 'present',
+        checkedInAt: record?.checkedInAt ?? session.closedAt,
+        session: this.serializeSession(session),
+        shiftName: session.shift?.name ?? null,
+        folderName: session.shift?.folder?.name ?? null,
+      };
+    });
   }
 
   private async findSessionOrFail(id: number): Promise<AttendanceSession> {
@@ -308,6 +331,7 @@ export class AttendanceService {
   private serializeSession(session: AttendanceSession) {
     return {
       id: session.id,
+      shiftId: session.shiftId,
       moodleCourseId: session.moodleCourseId,
       sessionDate: session.sessionDate,
       title: session.title,

@@ -2,12 +2,15 @@ import {
   Body,
   Controller,
   Get,
-  Headers,
   Param,
   ParseIntPipe,
   Post,
+  UseGuards,
+  NotFoundException,
 } from '@nestjs/common';
-import { extractBearerToken } from '../auth/auth-token.util';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { MoodleAuthGuard } from '../auth/moodle-auth.guard';
+import type { MoodleUser } from '../auth/moodle-user.types';
 import {
   CreateDiscussionDto,
   ReplyDiscussionDto,
@@ -15,9 +18,9 @@ import {
 import { MoodleService } from '../moodle/moodle.service';
 import { MoodleModuleRaw, MoodleSectionRaw } from '../moodle/moodle.types';
 import { ForumsService } from './forums.service';
-import { NotFoundException } from '@nestjs/common';
 
 @Controller('forums')
+@UseGuards(MoodleAuthGuard)
 export class ForumsController {
   constructor(
     private readonly forumsService: ForumsService,
@@ -27,16 +30,14 @@ export class ForumsController {
   @Get('course/:courseId')
   async getForumsByCourse(
     @Param('courseId', ParseIntPipe) courseId: number,
-    @Headers('authorization') authHeader: string,
+    @CurrentUser() user: MoodleUser,
   ) {
-    const token = extractBearerToken(authHeader);
-    return this.forumsService.getForumsByCourse(courseId, token);
+    return this.forumsService.getForumsByCourse(courseId, user.token);
   }
 
   @Get('general-discussions/auto')
-  async getAutoForumDiscussions(@Headers('authorization') authHeader: string) {
-    const token = extractBearerToken(authHeader);
-    const moodleUserId = await this.moodleService.getUserIdFromToken(token);
+  async getAutoForumDiscussions(@CurrentUser() user: MoodleUser) {
+    const { token, userId: moodleUserId } = user;
 
     const enrolledCourses = await this.moodleService.request<Array<{ id: number }>>(
       'core_enrol_get_users_courses',
@@ -90,38 +91,40 @@ export class ForumsController {
   @Get(':forumId/discussions')
   async getForumDiscussions(
     @Param('forumId', ParseIntPipe) forumId: number,
-    @Headers('authorization') authHeader: string,
+    @CurrentUser() user: MoodleUser,
   ) {
-    const token = extractBearerToken(authHeader);
-    return this.forumsService.getForumDiscussions(forumId, token);
+    return this.forumsService.getForumDiscussions(forumId, user.token);
   }
 
   @Get('discussions/:discussionId/posts')
   async getDiscussionPosts(
     @Param('discussionId', ParseIntPipe) discussionId: number,
-    @Headers('authorization') authHeader: string,
+    @CurrentUser() user: MoodleUser,
   ) {
-    const token = extractBearerToken(authHeader);
-    return this.forumsService.getDiscussionPosts(discussionId, token);
+    return this.forumsService.getDiscussionPosts(discussionId, user.token);
   }
 
   @Post(':forumId/discussions')
   async addDiscussion(
     @Param('forumId', ParseIntPipe) forumId: number,
     @Body() body: CreateDiscussionDto,
-    @Headers('authorization') authHeader: string,
+    @CurrentUser() user: MoodleUser,
   ) {
-    const token = extractBearerToken(authHeader);
-    return this.forumsService.addDiscussion(forumId, body.subject, body.message, token);
+    return this.forumsService.addDiscussion(
+      forumId,
+      body.subject,
+      body.message,
+      user.token,
+      body.groupid,
+    );
   }
 
   @Post('discussions/posts/:postId/reply')
   async addDiscussionPost(
     @Param('postId', ParseIntPipe) postId: number,
     @Body() body: ReplyDiscussionDto,
-    @Headers('authorization') authHeader: string,
+    @CurrentUser() user: MoodleUser,
   ) {
-    const token = extractBearerToken(authHeader);
-    return this.forumsService.addDiscussionPost(postId, body.message, token);
+    return this.forumsService.addDiscussionPost(postId, body.message, user.token);
   }
 }

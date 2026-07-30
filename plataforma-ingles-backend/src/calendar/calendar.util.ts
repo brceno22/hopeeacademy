@@ -1,6 +1,8 @@
 /** IANA TZ del plan (Ecuador). */
 export const CALENDAR_TZ = 'America/Guayaquil';
 
+export type OccurrenceStatus = 'upcoming' | 'live' | 'done';
+
 export interface CalendarOccurrence {
   id: string;
   source: 'shift' | 'event';
@@ -14,6 +16,20 @@ export interface CalendarOccurrence {
   shiftName: string;
   folderName: string | null;
   googleUrl?: string;
+  status?: OccurrenceStatus;
+}
+
+export function occurrenceStatus(
+  startsAt: string,
+  endsAt: string,
+  now: Date = new Date(),
+): OccurrenceStatus {
+  const t = now.getTime();
+  const start = new Date(startsAt).getTime();
+  const end = new Date(endsAt).getTime();
+  if (t < start) return 'upcoming';
+  if (t > end) return 'done';
+  return 'live';
 }
 
 function parseYmd(ymd: string): { y: number; m: number; d: number } {

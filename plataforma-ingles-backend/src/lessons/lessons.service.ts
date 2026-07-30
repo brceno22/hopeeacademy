@@ -7,6 +7,25 @@ interface MoodleLessonPagesResponse {
     page: { id: number; type?: number; [key: string]: unknown };
     [key: string]: unknown;
   }>;
+  [key: string]: unknown;
+}
+
+/** Prefer PDF (or first file with fileurl) from Moodle module contents. */
+export function pickResourceFileUrl(
+  contents?: Array<{ fileurl?: string; filename?: string; mimetype?: string }>,
+): string | null {
+  if (!contents?.length) return null;
+  const withUrl = contents.filter((c) => typeof c.fileurl === 'string' && c.fileurl.trim());
+  if (!withUrl.length) return null;
+
+  const pdf = withUrl.find((c) => {
+    const name = (c.filename || '').toLowerCase();
+    const mime = (c.mimetype || '').toLowerCase();
+    const url = (c.fileurl || '').toLowerCase();
+    return name.endsWith('.pdf') || mime.includes('pdf') || url.includes('.pdf');
+  });
+
+  return (pdf || withUrl[0]).fileurl!.trim();
 }
 
 @Injectable()
@@ -21,15 +40,16 @@ export class LessonsService {
       category: 'contenido_didactico',
       description: mod.description || '',
       url: mod.url || '',
-      fileUrl: mod.contents && mod.contents.length > 0 ? mod.contents[0].fileurl : null,
+      fileUrl: pickResourceFileUrl(mod.contents),
       instanceId: mod.instance,
     };
   }
 
-  async getLessonPages(instanceId: number) {
+  async getLessonPages(instanceId: number, userToken?: string) {
     const data = await this.moodleService.request<MoodleLessonPagesResponse>(
       'mod_lesson_get_pages',
       { lessonid: instanceId },
+      userToken,
     );
 
     if (!data?.pages) {
@@ -45,6 +65,7 @@ export class LessonsService {
               lessonid: instanceId,
               pageid: item.page.id,
             },
+            userToken,
           );
 
           return {

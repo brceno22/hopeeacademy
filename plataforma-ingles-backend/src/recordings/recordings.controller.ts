@@ -3,7 +3,6 @@ import {
   Controller,
   Delete,
   Get,
-  Headers,
   Param,
   ParseIntPipe,
   Patch,
@@ -12,7 +11,9 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AdminGuard } from '../auth/admin.guard';
-import { extractBearerToken } from '../auth/auth-token.util';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { MoodleAuthGuard } from '../auth/moodle-auth.guard';
+import type { MoodleUser } from '../auth/moodle-user.types';
 import { CreateRecordingDto, UpdateRecordingDto } from './dto/recording.dto';
 import { RecordingsService } from './recordings.service';
 
@@ -50,29 +51,29 @@ export class RecordingsController {
     return this.recordingsService.adminDelete(id);
   }
 
-  // ——— Student (Bearer) ———
+  // ——— Student (Bearer validado) ———
 
+  @UseGuards(MoodleAuthGuard)
   @Get()
-  async listGrouped(@Headers('authorization') authHeader: string) {
-    extractBearerToken(authHeader); // exige sesión Moodle
+  async listGrouped(@CurrentUser() _user: MoodleUser) {
     return this.recordingsService.listGroupedForStudents();
   }
 
+  @UseGuards(MoodleAuthGuard)
   @Get('folder/:folderId')
   async listByFolder(
-    @Headers('authorization') authHeader: string,
+    @CurrentUser() _user: MoodleUser,
     @Param('folderId', ParseIntPipe) folderId: number,
   ) {
-    extractBearerToken(authHeader);
     return this.recordingsService.listByFolder(folderId);
   }
 
+  @UseGuards(MoodleAuthGuard)
   @Get(':id')
   async getOne(
-    @Headers('authorization') authHeader: string,
+    @CurrentUser() _user: MoodleUser,
     @Param('id', ParseIntPipe) id: number,
   ) {
-    extractBearerToken(authHeader);
     return this.recordingsService.getOneForStudent(id);
   }
 }

@@ -1,11 +1,12 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
+import { addDaysInAppTz, dateStringInAppTz } from '../common/timezone.util';
+import { MoodleService } from '../moodle/moodle.service';
+import { CreateMicrolearningDto } from './dto/microlearning.dto';
 import { MicrolearningContent } from './microlearning-content.entity';
 import { UserMicrolearningHistory } from './user-microlearning-history.entity';
 import { UserStreak } from './user-streak.entity';
-import { MoodleService } from '../moodle/moodle.service';
-import { CreateMicrolearningDto } from './dto/microlearning.dto';
 
 @Injectable()
 export class MicrolearningService {
@@ -17,89 +18,102 @@ export class MicrolearningService {
     @InjectRepository(UserStreak)
     private streakRepo: Repository<UserStreak>,
     private moodleService: MoodleService,
+    private dataSource: DataSource,
   ) {}
 
-  // Helper para obtener fecha local en formato YYYY-MM-DD
   private getLocalDateString(date: Date = new Date()): string {
-    const offset = date.getTimezoneOffset() * 60000;
-    return new Date(date.getTime() - offset).toISOString().split('T')[0];
+    return dateStringInAppTz(date);
   }
 
   async createBulkContent(contents: CreateMicrolearningDto[]) {
     return this.contentRepo.save(contents);
   }
 
-  async getTodayContent(token: string) {
-    const userId = await this.moodleService.getUserIdFromToken(token);
-    const todayStr = this.getLocalDateString(); // YYYY-MM-DD
+  /** Contenido asignado hoy (seed estable por userId+fecha). */
+  async resolveTodayContentId(userId: number): Promise<number | null> {
+    const todayStr = this.getLocalDateString();
+    const startOfDay = new Date(`${todayStr}T00:00:00`);
+    const endOfDay = new Date(`${todayStr}T23:59:59.999`);
 
-    // 1. Definimos el inicio y fin del día de hoy para buscar en el historial
-    const startOfDay = new Date();
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date();
-    endOfDay.setHours(23, 59, 59, 999);
-
-    // 2. Verificar si el usuario YA completó alguna píldora HOY
-    const todayHistory = await this.historyRepo.createQueryBuilder('history')
+    const todayHistory = await this.historyRepo
+      .createQueryBuilder('history')
       .where('history.userId = :userId', { userId })
-      .andWhere('history.viewedAt >= :start AND history.viewedAt <= :end', { start: startOfDay, end: endOfDay })
+      .andWhere('history.viewedAt >= :start AND history.viewedAt <= :end', {
+        start: startOfDay,
+        end: endOfDay,
+      })
+      .getOne();
+
+    if (todayHistory) return todayHistory.contentId;
+
+    const allHistory = await this.historyRepo.find({ where: { userId } });
+    const viewedIds = allHistory.map((h) => h.contentId);
+
+    let allUnseen = await this.contentRepo
+      .createQueryBuilder('content')
+      .where('content.id NOT IN (:...viewedIds)', {
+        viewedIds: viewedIds.length > 0 ? viewedIds : [0],
+      })
+      .getMany();
+
+    if (allUnseen.length === 0) {
+      allUnseen = await this.contentRepo.find();
+    }
+
+    if (allUnseen.length === 0) return null;
+
+    let hash = 0;
+    const seedStr = todayStr + userId;
+    for (let i = 0; i < seedStr.length; i++) {
+      hash += seedStr.charCodeAt(i);
+    }
+    return allUnseen[hash % allUnseen.length].id;
+  }
+
+  async getTodayContent(token: string, knownUserId?: number) {
+    const userId = knownUserId ?? (await this.moodleService.getUserIdFromToken(token));
+    const todayStr = this.getLocalDateString();
+    const startOfDay = new Date(`${todayStr}T00:00:00`);
+    const endOfDay = new Date(`${todayStr}T23:59:59.999`);
+
+    const todayHistory = await this.historyRepo
+      .createQueryBuilder('history')
+      .where('history.userId = :userId', { userId })
+      .andWhere('history.viewedAt >= :start AND history.viewedAt <= :end', {
+        start: startOfDay,
+        end: endOfDay,
+      })
       .getOne();
 
     let content: MicrolearningContent | null = null;
     let todayCompleted = false;
 
     if (todayHistory) {
-      // SI YA COMPLETÓ: Traemos exactamente la píldora que resolvió hoy
       todayCompleted = true;
       content = await this.contentRepo.findOne({ where: { id: todayHistory.contentId } });
     } else {
-      // NO COMPLETÓ: Elegimos una al azar del catálogo que todavía NO HAYA VISTO
-      todayCompleted = false;
-
-      // Buscamos todo lo que ya vio en su historia para excluirlo
-      const allHistory = await this.historyRepo.find({ where: { userId } });
-      const viewedIds = allHistory.map(h => h.contentId);
-
-      // Traemos las píldoras que NO están en esa lista
-      let allUnseen = await this.contentRepo.createQueryBuilder('content')
-        .where('content.id NOT IN (:...viewedIds)', { viewedIds: viewedIds.length > 0 ? viewedIds : [0] })
-        .getMany();
-
-      // Si ya vio absolutamente todo el catálogo, reiniciamos y le permitimos ver cualquiera
-      if (allUnseen.length === 0) {
-        allUnseen = await this.contentRepo.find();
-      }
-
-      if (allUnseen.length > 0) {
-        // Generamos un índice "aleatorio pero fijo por día" usando su userId y la fecha.
-        // Esto evita que cambie de palabra cada vez que refresca la pantalla.
-        let hash = 0;
-        const seedStr = todayStr + userId;
-        for (let i = 0; i < seedStr.length; i++) {
-          hash += seedStr.charCodeAt(i);
-        }
-        const randomIndex = hash % allUnseen.length;
-        content = allUnseen[randomIndex];
+      const assignedId = await this.resolveTodayContentId(userId);
+      if (assignedId) {
+        content = await this.contentRepo.findOne({ where: { id: assignedId } });
       }
     }
 
-    // Si la base de datos está completamente vacía, tiramos el error
     if (!content) {
       throw new NotFoundException('No hay contenidos cargados en el catálogo de Microlearning.');
     }
 
-    // 3. CÁLCULO DE LA RACHA (Misma lógica sólida de antes)
     let currentStreak = 0;
     const streakRecord = await this.streakRepo.findOne({ where: { userId } });
-    
+
     if (streakRecord) {
       currentStreak = streakRecord.currentStreak;
-      const yesterday = new Date();
-      yesterday.setDate(yesterday.getDate() - 1);
-      const yesterdayStr = this.getLocalDateString(yesterday);
+      const yesterdayStr = addDaysInAppTz(new Date(), -1);
 
-      // Si no completó hoy y la última actividad fue antes de ayer, la racha visual se muestra en 0
-      if (!todayCompleted && streakRecord.lastActiveDate && streakRecord.lastActiveDate < yesterdayStr) {
+      if (
+        !todayCompleted &&
+        streakRecord.lastActiveDate &&
+        streakRecord.lastActiveDate < yesterdayStr
+      ) {
         currentStreak = 0;
       }
     }
@@ -111,49 +125,52 @@ export class MicrolearningService {
     };
   }
 
-  async markAsCompleted(token: string, contentId: number) {
-    const userId = await this.moodleService.getUserIdFromToken(token);
+  async markAsCompleted(token: string, contentId: number, knownUserId?: number) {
+    const userId = knownUserId ?? (await this.moodleService.getUserIdFromToken(token));
     const todayStr = this.getLocalDateString();
 
-    // Verificamos si ya existe (idempotente)
+    const assignedId = await this.resolveTodayContentId(userId);
+    if (assignedId == null || assignedId !== contentId) {
+      throw new BadRequestException('Solo podés completar la píldora asignada para hoy');
+    }
+
     const existingHistory = await this.historyRepo.findOne({
       where: { userId, contentId },
     });
 
     if (existingHistory) {
       const streak = await this.streakRepo.findOne({ where: { userId } });
-      return { success: true, currentStreak: streak?.currentStreak || 1, message: 'Ya estaba completado' };
+      return {
+        success: true,
+        currentStreak: streak?.currentStreak || 1,
+        message: 'Ya estaba completado',
+      };
     }
 
-    // Guardar en el historial
-    const newHistory = this.historyRepo.create({ userId, contentId });
-    await this.historyRepo.save(newHistory);
+    return this.dataSource.transaction(async (manager) => {
+      const historyRepo = manager.getRepository(UserMicrolearningHistory);
+      const streakRepo = manager.getRepository(UserStreak);
 
-    // Lógica de Racha
-    let streak = await this.streakRepo.findOne({ where: { userId } });
-    
-    if (!streak) {
-      // Primera vez en su vida
-      streak = this.streakRepo.create({ userId, currentStreak: 1, lastActiveDate: todayStr });
-    } else {
-      const yesterday = new Date();
-      yesterday.setDate(yesterday.getDate() - 1);
-      const yesterdayStr = this.getLocalDateString(yesterday);
+      await historyRepo.save(historyRepo.create({ userId, contentId }));
 
-      if (streak.lastActiveDate === yesterdayStr) {
-        // Racha mantenida
+      let streak = await streakRepo.findOne({ where: { userId } });
+      const yesterdayStr = addDaysInAppTz(new Date(), -1);
+
+      if (!streak) {
+        streak = streakRepo.create({ userId, currentStreak: 1, lastActiveDate: todayStr });
+      } else if (streak.lastActiveDate === yesterdayStr) {
         streak.currentStreak += 1;
+        streak.lastActiveDate = todayStr;
       } else if (streak.lastActiveDate !== todayStr) {
-        // Racha rota (pasó más de un día sin entrar)
         streak.currentStreak = 1;
+        streak.lastActiveDate = todayStr;
+      } else {
+        streak.lastActiveDate = todayStr;
       }
-      // Actualizamos la fecha a hoy
-      streak.lastActiveDate = todayStr;
-    }
 
-    await this.streakRepo.save(streak);
-
-    return { success: true, currentStreak: streak.currentStreak };
+      await streakRepo.save(streak);
+      return { success: true, currentStreak: streak.currentStreak };
+    });
   }
 
   async createAdminContent(data: CreateMicrolearningDto) {

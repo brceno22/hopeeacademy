@@ -2,13 +2,14 @@ import {
   Body,
   Controller,
   Get,
-  Headers,
   ParseArrayPipe,
   Post,
   UseGuards,
 } from '@nestjs/common';
 import { AdminGuard } from '../auth/admin.guard';
-import { extractBearerToken } from '../auth/auth-token.util';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { MoodleAuthGuard } from '../auth/moodle-auth.guard';
+import type { MoodleUser } from '../auth/moodle-user.types';
 import {
   CompleteMicrolearningDto,
   CreateMicrolearningDto,
@@ -19,19 +20,23 @@ import { MicrolearningService } from './microlearning.service';
 export class MicrolearningController {
   constructor(private readonly microlearningService: MicrolearningService) {}
 
+  @UseGuards(MoodleAuthGuard)
   @Get('today')
-  async getTodayContent(@Headers('authorization') authHeader: string) {
-    const token = extractBearerToken(authHeader);
-    return this.microlearningService.getTodayContent(token);
+  async getTodayContent(@CurrentUser() user: MoodleUser) {
+    return this.microlearningService.getTodayContent(user.token, user.userId);
   }
 
+  @UseGuards(MoodleAuthGuard)
   @Post('complete')
   async markAsCompleted(
     @Body() body: CompleteMicrolearningDto,
-    @Headers('authorization') authHeader: string,
+    @CurrentUser() user: MoodleUser,
   ) {
-    const token = extractBearerToken(authHeader);
-    return this.microlearningService.markAsCompleted(token, Number(body.contentId));
+    return this.microlearningService.markAsCompleted(
+      user.token,
+      Number(body.contentId),
+      user.userId,
+    );
   }
 
   @UseGuards(AdminGuard)

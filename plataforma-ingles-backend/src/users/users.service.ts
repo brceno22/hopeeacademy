@@ -127,6 +127,21 @@ export class UsersService {
     return this.findByField('username', username);
   }
 
+  /** Autocomplete admin: búsqueda parcial en Moodle. */
+  async searchUsers(query: string) {
+    const q = query.trim();
+    if (q.length < 2) {
+      throw new BadRequestException('Query must be at least 2 characters');
+    }
+    const users = await this.moodleService.searchUsers(q, 25);
+    return users.map((u) => ({
+      moodleUserId: u.id,
+      fullname: u.fullname,
+      email: u.email,
+      username: u.username,
+    }));
+  }
+
   async getMe(userToken: string): Promise<UserProfile> {
     const userId = await this.moodleService.getUserIdFromToken(userToken);
     return this.findByField('id', String(userId));
@@ -171,12 +186,13 @@ export class UsersService {
 
     const service = this.configService.get<string>('MOODLE_SERVICE') || 'hopee';
     const origin = baseUrl.split('/webservice')[0];
-    const params = new URLSearchParams({ username, password, service });
 
     try {
       const { data } = await firstValueFrom(
-        this.httpService.get<{ token?: string; error?: string; errorcode?: string }>(
-          `${origin}/login/token.php?${params.toString()}`,
+        this.httpService.post<{ token?: string; error?: string; errorcode?: string }>(
+          `${origin}/login/token.php`,
+          new URLSearchParams({ username, password, service }).toString(),
+          { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } },
         ),
       );
 

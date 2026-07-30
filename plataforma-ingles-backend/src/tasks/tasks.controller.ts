@@ -1,51 +1,36 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Headers,
-  Param,
-  ParseIntPipe,
-  Post,
-  UnauthorizedException,
-} from '@nestjs/common';
-import { extractOptionalBearerToken } from '../auth/auth-token.util';
+import { Body, Controller, Get, Param, ParseIntPipe, Post, UseGuards } from '@nestjs/common';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { MoodleAuthGuard } from '../auth/moodle-auth.guard';
+import type { MoodleUser } from '../auth/moodle-user.types';
 import { SubmitTaskDto } from '../common/dto/moodle-actions.dto';
 import { TasksService } from './tasks.service';
 
 @Controller('tasks')
+@UseGuards(MoodleAuthGuard)
 export class TasksController {
   constructor(private readonly tasksService: TasksService) {}
 
   @Get(':assignId')
-  getTask(@Param('assignId', ParseIntPipe) assignId: number) {
-    return this.tasksService.getTask(assignId);
+  getTask(@Param('assignId', ParseIntPipe) assignId: number, @CurrentUser() user: MoodleUser) {
+    return this.tasksService.getTask(assignId, user.token);
   }
 
   @Get(':assignId/status')
   getSubmissionStatus(
     @Param('assignId', ParseIntPipe) assignId: number,
-    @Headers('authorization') authHeader: string,
-    @Headers('x-user-token') legacyToken?: string,
+    @CurrentUser() user: MoodleUser,
   ) {
-    const token = extractOptionalBearerToken(authHeader) || legacyToken;
-    if (!token) {
-      throw new UnauthorizedException('Falta el token de autenticación');
-    }
-    return this.tasksService.getSubmissionStatus(assignId, token);
+    return this.tasksService.getSubmissionStatus(assignId, user.token);
   }
 
   @Post(':assignId/submit')
   submitTask(
     @Param('assignId', ParseIntPipe) assignId: number,
     @Body() body: SubmitTaskDto,
-    @Headers('authorization') authHeader?: string,
+    @CurrentUser() user: MoodleUser,
   ) {
-    const token = body.token || extractOptionalBearerToken(authHeader);
-    if (!token) {
-      throw new UnauthorizedException('Falta el token de autenticación');
-    }
-    return this.tasksService.submitTask(assignId, token, {
-      userId: body.userId,
+    return this.tasksService.submitTask(assignId, user.token, {
+      userId: user.userId,
       text: body.text,
       fileName: body.fileName,
       fileBase64: body.fileBase64,

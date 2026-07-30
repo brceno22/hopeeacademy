@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '@/core/api/axios';
 import { useAuth } from '@/core/context/AuthContext';
@@ -6,6 +6,7 @@ import type { CourseFolderNode } from '@/core/types/courses-catalog';
 import './admin.css';
 
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const SEARCH_DEBOUNCE_MS = 300;
 
 interface Shift {
   id: number;
@@ -28,6 +29,16 @@ interface Enrollment {
   id: number;
   shiftId: number;
   moodleUserId: number;
+  fullName?: string;
+  email?: string | null;
+  username?: string | null;
+}
+
+interface UserSuggestion {
+  moodleUserId: number;
+  fullname: string;
+  email: string;
+  username: string;
 }
 
 interface CalEvent {
@@ -56,7 +67,7 @@ export const AdminCalendar: React.FC = () => {
   const { adminKey } = useAuth();
   const headers = { 'x-admin-key': adminKey || '' };
 
-  const [tab, setTab] = useState<'shifts' | 'enroll' | 'events'>('shifts');
+  const [tab, setTab] = useState<'shifts' | 'enroll' | 'teachers' | 'events'>('shifts');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(true);
@@ -75,16 +86,23 @@ export const AdminCalendar: React.FC = () => {
     title: 'Hopee class — Meet',
     description: '',
     meetUrl: '',
+    validFrom: '',
+    validTo: '',
   });
 
   const [selectedShiftId, setSelectedShiftId] = useState<number | null>(null);
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
+  const [teachers, setTeachers] = useState<Enrollment[]>([]);
   const [searchUser, setSearchUser] = useState('');
-  const [foundUser, setFoundUser] = useState<{
-    moodleUserId: number;
-    fullname: string;
-    email: string;
-  } | null>(null);
+  const [studentSuggestions, setStudentSuggestions] = useState<UserSuggestion[]>([]);
+  const [studentSearchOpen, setStudentSearchOpen] = useState(false);
+  const [studentSearching, setStudentSearching] = useState(false);
+  const [teacherSearchUser, setTeacherSearchUser] = useState('');
+  const [teacherSuggestions, setTeacherSuggestions] = useState<UserSuggestion[]>([]);
+  const [teacherSearchOpen, setTeacherSearchOpen] = useState(false);
+  const [teacherSearching, setTeacherSearching] = useState(false);
+  const studentSearchRef = useRef<HTMLDivElement>(null);
+  const teacherSearchRef = useRef<HTMLDivElement>(null);
 
   const [eventForm, setEventForm] = useState({
     shiftId: '',
@@ -128,15 +146,96 @@ export const AdminCalendar: React.FC = () => {
     if (!selectedShiftId || !adminKey) return;
     void (async () => {
       try {
-        const res = await api.get(`/calendar/admin/shifts/${selectedShiftId}/enrollments`, {
-          headers,
-        });
-        setEnrollments(res.data);
+        const [enrollRes, teacherRes] = await Promise.all([
+          api.get(`/calendar/admin/shifts/${selectedShiftId}/enrollments`, { headers }),
+          api.get(`/calendar/admin/shifts/${selectedShiftId}/teachers`, { headers }),
+        ]);
+        setEnrollments(enrollRes.data);
+        setTeachers(teacherRes.data);
       } catch {
         setEnrollments([]);
+        setTeachers([]);
       }
     })();
   }, [selectedShiftId, adminKey]);
+
+  useEffect(() => {
+    const onDocClick = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (studentSearchRef.current && !studentSearchRef.current.contains(t)) {
+        setStudentSearchOpen(false);
+      }
+      if (teacherSearchRef.current && !teacherSearchRef.current.contains(t)) {
+        setTeacherSearchOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, []);
+
+  useEffect(() => {
+    if (!adminKey || searchUser.trim().length < 2) {
+      setStudentSuggestions([]);
+      setStudentSearching(false);
+      return;
+    }
+    let cancelled = false;
+    setStudentSearching(true);
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        try {
+          const res = await api.get<UserSuggestion[]>('/users/search', {
+            params: { q: searchUser.trim() },
+            headers,
+          });
+          if (!cancelled) {
+            setStudentSuggestions(res.data);
+            setStudentSearchOpen(true);
+          }
+        } catch {
+          if (!cancelled) setStudentSuggestions([]);
+        } finally {
+          if (!cancelled) setStudentSearching(false);
+        }
+      })();
+    }, SEARCH_DEBOUNCE_MS);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [searchUser, adminKey]);
+
+  useEffect(() => {
+    if (!adminKey || teacherSearchUser.trim().length < 2) {
+      setTeacherSuggestions([]);
+      setTeacherSearching(false);
+      return;
+    }
+    let cancelled = false;
+    setTeacherSearching(true);
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        try {
+          const res = await api.get<UserSuggestion[]>('/users/search', {
+            params: { q: teacherSearchUser.trim() },
+            headers,
+          });
+          if (!cancelled) {
+            setTeacherSuggestions(res.data);
+            setTeacherSearchOpen(true);
+          }
+        } catch {
+          if (!cancelled) setTeacherSuggestions([]);
+        } finally {
+          if (!cancelled) setTeacherSearching(false);
+        }
+      })();
+    }, SEARCH_DEBOUNCE_MS);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [teacherSearchUser, adminKey]);
 
   const toggleDay = (d: number) => {
     setShiftForm((prev) => ({
@@ -150,6 +249,10 @@ export const AdminCalendar: React.FC = () => {
   const createShift = async () => {
     if (!shiftForm.name || !shiftForm.folderId || !shiftForm.daysOfWeek.length) {
       setError('Fill in name, folder, and at least one day');
+      return;
+    }
+    if (shiftForm.validFrom && shiftForm.validTo && shiftForm.validFrom > shiftForm.validTo) {
+      setError('Start date must be on or before end date');
       return;
     }
     try {
@@ -167,11 +270,13 @@ export const AdminCalendar: React.FC = () => {
           title: shiftForm.title,
           description: shiftForm.description || undefined,
           meetUrl: shiftForm.meetUrl || undefined,
+          validFrom: shiftForm.validFrom || undefined,
+          validTo: shiftForm.validTo || undefined,
         },
         { headers },
       );
       setSuccess('Shift created');
-      setShiftForm((f) => ({ ...f, name: '' }));
+      setShiftForm((f) => ({ ...f, name: '', validFrom: '', validTo: '' }));
       await load();
     } catch {
       setError('Could not create shift');
@@ -190,44 +295,28 @@ export const AdminCalendar: React.FC = () => {
     }
   };
 
-  const searchMoodleUser = async () => {
-    setFoundUser(null);
+  const enrollUser = async (user: UserSuggestion) => {
+    if (!selectedShiftId) return;
     setError('');
-    try {
-      const q = searchUser.trim();
-      const params = q.includes('@') ? { email: q } : { username: q };
-      const res = await api.get('/users/buscar', { params });
-      if (res.data?.error) {
-        setError(res.data.error);
-        return;
-      }
-      setFoundUser({
-        moodleUserId: res.data.moodleUserId,
-        fullname: res.data.fullname,
-        email: res.data.email,
-      });
-    } catch {
-      setError('User not found in Moodle');
-    }
-  };
-
-  const enrollUser = async () => {
-    if (!selectedShiftId || !foundUser) return;
     try {
       await api.post(
         `/calendar/admin/shifts/${selectedShiftId}/enrollments`,
-        { moodleUserId: foundUser.moodleUserId },
+        { moodleUserId: user.moodleUserId },
         { headers },
       );
-      setSuccess(`Assigned: ${foundUser.fullname}`);
+      setSuccess(`Assigned: ${user.fullname}`);
       setSearchUser('');
-      setFoundUser(null);
+      setStudentSuggestions([]);
+      setStudentSearchOpen(false);
       const res = await api.get(`/calendar/admin/shifts/${selectedShiftId}/enrollments`, {
         headers,
       });
       setEnrollments(res.data);
-    } catch {
-      setError('Could not assign');
+    } catch (err: unknown) {
+      const message =
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+        'Could not assign';
+      setError(typeof message === 'string' ? message : 'Could not assign');
     }
   };
 
@@ -242,6 +331,44 @@ export const AdminCalendar: React.FC = () => {
       setSuccess('Student removed');
     } catch {
       setError('Could not remove');
+    }
+  };
+
+  const assignTeacher = async (user: UserSuggestion) => {
+    if (!selectedShiftId) return;
+    setError('');
+    try {
+      await api.post(
+        `/calendar/admin/shifts/${selectedShiftId}/teachers`,
+        { moodleUserId: user.moodleUserId },
+        { headers },
+      );
+      setSuccess(`Teacher assigned: ${user.fullname}`);
+      setTeacherSearchUser('');
+      setTeacherSuggestions([]);
+      setTeacherSearchOpen(false);
+      const res = await api.get(`/calendar/admin/shifts/${selectedShiftId}/teachers`, {
+        headers,
+      });
+      setTeachers(res.data);
+    } catch (err: unknown) {
+      const message =
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+        'Could not assign teacher';
+      setError(typeof message === 'string' ? message : 'Could not assign teacher');
+    }
+  };
+
+  const unassignTeacher = async (moodleUserId: number) => {
+    if (!selectedShiftId) return;
+    try {
+      await api.delete(`/calendar/admin/shifts/${selectedShiftId}/teachers/${moodleUserId}`, {
+        headers,
+      });
+      setTeachers((prev) => prev.filter((t) => t.moodleUserId !== moodleUserId));
+      setSuccess('Teacher removed');
+    } catch {
+      setError('Could not remove teacher');
     }
   };
 
@@ -284,8 +411,8 @@ export const AdminCalendar: React.FC = () => {
   return (
     <div className="admin-page">
       <header className="admin-page__header">
-        <h1>Calendar / Shifts</h1>
-        <p>Recurring rules, students per shift, and one-off events.</p>
+        <h1>Calendar / Classrooms</h1>
+        <p>Recurring classrooms (shifts), students, teachers, and one-off events.</p>
       </header>
 
       {success && <div className="admin-alert ok">{success}</div>}
@@ -294,8 +421,9 @@ export const AdminCalendar: React.FC = () => {
       <div className="admin-nav" style={{ marginBottom: 16 }}>
           {(
             [
-              ['shifts', 'Shifts'],
-              ['enroll', 'Shift students'],
+              ['shifts', 'Classrooms'],
+              ['enroll', 'Students'],
+              ['teachers', 'Teachers'],
               ['events', 'One-off events'],
             ] as const
           ).map(([key, label]) => (
@@ -378,6 +506,29 @@ export const AdminCalendar: React.FC = () => {
                   onChange={(e) => setShiftForm({ ...shiftForm, title: e.target.value })}
                 />
               </div>
+              <div className="admin-form-row" style={{ marginBottom: 10, alignItems: 'center' }}>
+                <label className="page-description" style={{ margin: 0, whiteSpace: 'nowrap' }}>
+                  From
+                </label>
+                <input
+                  type="date"
+                  className="admin-input"
+                  value={shiftForm.validFrom}
+                  onChange={(e) => setShiftForm({ ...shiftForm, validFrom: e.target.value })}
+                />
+                <label className="page-description" style={{ margin: 0, whiteSpace: 'nowrap' }}>
+                  To
+                </label>
+                <input
+                  type="date"
+                  className="admin-input"
+                  value={shiftForm.validTo}
+                  onChange={(e) => setShiftForm({ ...shiftForm, validTo: e.target.value })}
+                />
+                <span className="page-description" style={{ margin: 0 }}>
+                  Optional. Leave empty for no end (repeats indefinitely).
+                </span>
+              </div>
               <div className="admin-form-row">
                 <input
                   className="admin-input"
@@ -405,6 +556,9 @@ export const AdminCalendar: React.FC = () => {
                         <span className="admin-folder-meta">
                           {s.folderName} · {s.daysOfWeek.map((d) => DAY_LABELS[d]).join(', ')} ·{' '}
                           {s.startTime}–{s.endTime}
+                          {s.validFrom || s.validTo
+                            ? ` · ${s.validFrom ?? '…'} → ${s.validTo ?? 'ongoing'}`
+                            : ' · no date limit'}
                           {!s.isActive ? ' · inactive' : ''}
                         </span>
                       </div>
@@ -419,7 +573,11 @@ export const AdminCalendar: React.FC = () => {
           </>
         ) : tab === 'enroll' ? (
           <div className="admin-card">
-            <h3>Assign students to a shift</h3>
+            <h3>Assign students to a classroom</h3>
+            <p className="page-description" style={{ marginTop: 0 }}>
+              Assigning a student also enrols them in Moodle on every class (course) linked to this
+              classroom&apos;s program folder and its subfolders.
+            </p>
             <select
               className="admin-select"
               value={selectedShiftId ?? ''}
@@ -433,36 +591,137 @@ export const AdminCalendar: React.FC = () => {
                 </option>
               ))}
             </select>
-            <div className="admin-form-row" style={{ marginBottom: 12 }}>
+            <div className="admin-autocomplete" ref={studentSearchRef} style={{ marginBottom: 12 }}>
               <input
                 className="admin-input"
-                placeholder="Moodle username or email"
+                placeholder="Type a name, username or email…"
                 value={searchUser}
                 onChange={(e) => setSearchUser(e.target.value)}
-                style={{ flex: 1 }}
+                onFocus={() => {
+                  if (studentSuggestions.length) setStudentSearchOpen(true);
+                }}
+                style={{ width: '100%' }}
+                disabled={!selectedShiftId}
               />
-              <button type="button" className="admin-btn accent" onClick={() => void searchMoodleUser()}>
-                Search
-              </button>
-              {foundUser && (
-                <button type="button" className="admin-btn primary" onClick={() => void enrollUser()}>
-                  Assign {foundUser.fullname}
-                </button>
+              {studentSearchOpen && searchUser.trim().length >= 2 && (
+                <ul className="admin-autocomplete__list" role="listbox">
+                  {studentSearching && (
+                    <li className="admin-autocomplete__empty">Searching…</li>
+                  )}
+                  {!studentSearching && studentSuggestions.length === 0 && (
+                    <li className="admin-autocomplete__empty">No users found</li>
+                  )}
+                  {!studentSearching &&
+                    studentSuggestions.map((u) => (
+                      <li key={u.moodleUserId}>
+                        <button
+                          type="button"
+                          className="admin-autocomplete__item"
+                          onClick={() => void enrollUser(u)}
+                        >
+                          <strong>{u.fullname}</strong>
+                          <span>
+                            {u.username}
+                            {u.email ? ` · ${u.email}` : ''}
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                </ul>
               )}
             </div>
-            {foundUser && (
-              <p className="page-description">
-                Found: {foundUser.fullname} (id {foundUser.moodleUserId}) — {foundUser.email}
-              </p>
-            )}
             <ul className="admin-course-list">
               {enrollments.map((e) => (
                 <li key={e.id}>
-                  <span>Moodle user #{e.moodleUserId}</span>
+                  <div style={{ flex: 1 }}>
+                    <strong>{e.fullName || `User #${e.moodleUserId}`}</strong>
+                    <span className="admin-folder-meta">
+                      {e.email || e.username || `id ${e.moodleUserId}`}
+                    </span>
+                  </div>
                   <button
                     type="button"
                     className="admin-btn ghost"
                     onClick={() => void unenroll(e.moodleUserId)}
+                  >
+                    remove
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : tab === 'teachers' ? (
+          <div className="admin-card">
+            <h3>Assign teachers to a classroom</h3>
+            <p className="page-description" style={{ marginTop: 0 }}>
+              Assigning a teacher also enrols them as teacher in Moodle on every class linked to this
+              classroom&apos;s program folder and its subfolders.
+            </p>
+            <select
+              className="admin-select"
+              value={selectedShiftId ?? ''}
+              onChange={(e) => setSelectedShiftId(Number(e.target.value))}
+              style={{ marginBottom: 12 }}
+            >
+              <option value="">Select classroom</option>
+              {shifts.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+            <div className="admin-autocomplete" ref={teacherSearchRef} style={{ marginBottom: 12 }}>
+              <input
+                className="admin-input"
+                placeholder="Type a name, username or email…"
+                value={teacherSearchUser}
+                onChange={(e) => setTeacherSearchUser(e.target.value)}
+                onFocus={() => {
+                  if (teacherSuggestions.length) setTeacherSearchOpen(true);
+                }}
+                style={{ width: '100%' }}
+                disabled={!selectedShiftId}
+              />
+              {teacherSearchOpen && teacherSearchUser.trim().length >= 2 && (
+                <ul className="admin-autocomplete__list" role="listbox">
+                  {teacherSearching && (
+                    <li className="admin-autocomplete__empty">Searching…</li>
+                  )}
+                  {!teacherSearching && teacherSuggestions.length === 0 && (
+                    <li className="admin-autocomplete__empty">No users found</li>
+                  )}
+                  {!teacherSearching &&
+                    teacherSuggestions.map((u) => (
+                      <li key={u.moodleUserId}>
+                        <button
+                          type="button"
+                          className="admin-autocomplete__item"
+                          onClick={() => void assignTeacher(u)}
+                        >
+                          <strong>{u.fullname}</strong>
+                          <span>
+                            {u.username}
+                            {u.email ? ` · ${u.email}` : ''}
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                </ul>
+              )}
+            </div>
+            <ul className="admin-course-list">
+              {teachers.map((t) => (
+                <li key={t.id}>
+                  <div style={{ flex: 1 }}>
+                    <strong>{t.fullName || `User #${t.moodleUserId}`}</strong>
+                    <span className="admin-folder-meta">
+                      {t.email || t.username || `id ${t.moodleUserId}`}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    className="admin-btn ghost"
+                    onClick={() => void unassignTeacher(t.moodleUserId)}
                   >
                     remove
                   </button>

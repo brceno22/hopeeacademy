@@ -50,15 +50,15 @@ export class AuthService {
     const username = await this.resolveMoodleUsername(usernameOrEmail.trim());
 
     try {
-      const params = new URLSearchParams({
-        username,
-        password,
-        service,
-      });
-
       const { data } = await firstValueFrom(
-        this.httpService.get<{ token?: string; error?: string; errorcode?: string }>(
-          `${urlFinal}?${params.toString()}`,
+        this.httpService.post<{ token?: string; error?: string; errorcode?: string }>(
+          urlFinal,
+          new URLSearchParams({
+            username,
+            password,
+            service,
+          }).toString(),
+          { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } },
         ),
       );
 
@@ -178,8 +178,8 @@ export class AuthService {
   }
 
   /** Indica si el usuario Moodle es profesor/manager en al menos un curso. */
-  async getCapabilities(userToken: string): Promise<AuthCapabilities> {
-    const userId = await this.moodleService.getUserIdFromToken(userToken);
+  async getCapabilities(userToken: string, knownUserId?: number): Promise<AuthCapabilities> {
+    const userId = knownUserId ?? (await this.moodleService.getUserIdFromToken(userToken));
     const cacheKey = `auth:capabilities:${userId}`;
     const cached = await this.cache.get<AuthCapabilities>(cacheKey);
     if (cached) return cached;

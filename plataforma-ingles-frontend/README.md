@@ -1,6 +1,19 @@
 # React + TypeScript + Vite
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Hopee student/admin frontend. API client: `src/core/api/axios.ts` (`VITE_API_URL`, default `http://localhost:3003`).
+
+## Backend CORS (required after API hardening)
+
+The Nest API only allows origins listed in `CORS_ORIGINS`. For local Vite:
+
+```bash
+# in plataforma-ingles-backend/.env
+CORS_ORIGINS=http://localhost:5173
+```
+
+Without this, the browser blocks all API calls. Production must list the real frontend origin(s), comma-separated.
+
+## React Compiler
 
 Currently, two official plugins are available:
 

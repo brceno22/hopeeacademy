@@ -1,24 +1,11 @@
-import { IsInt, IsNotEmpty, IsObject, IsOptional, IsString, Min } from 'class-validator';
+import { IsNotEmpty, IsNumber, IsObject, IsOptional, IsString } from 'class-validator';
 
 export class SubmitLessonDto {
-  @IsString()
-  @IsNotEmpty()
-  token!: string;
-
   @IsObject()
   respuestas!: Record<string, unknown>;
 }
 
 export class SubmitTaskDto {
-  @IsString()
-  @IsNotEmpty()
-  token!: string;
-
-  @IsOptional()
-  @IsInt()
-  @Min(1)
-  userId?: number;
-
   @IsOptional()
   @IsString()
   text?: string;
@@ -44,6 +31,10 @@ export class CreateDiscussionDto {
   @IsString()
   @IsNotEmpty()
   message!: string;
+
+  @IsOptional()
+  @IsNumber()
+  groupid?: number;
 }
 
 export class ReplyDiscussionDto {

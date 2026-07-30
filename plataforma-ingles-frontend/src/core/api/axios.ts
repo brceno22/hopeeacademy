@@ -1,3 +1,10 @@
+/**
+ * Axios client for the Nest API.
+ *
+ * Backend must allow this Vite origin via CORS_ORIGINS, e.g.:
+ *   CORS_ORIGINS=http://localhost:5173
+ * (comma-separated for multiple origins; empty denies all browser origins)
+ */
 import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios';
 
 export const API_BASE_URL =

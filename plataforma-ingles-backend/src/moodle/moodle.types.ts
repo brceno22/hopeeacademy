@@ -32,7 +32,12 @@ export interface MoodleModuleRaw {
   instance?: number;
   description?: string;
   url?: string;
-  contents?: Array<{ fileurl?: string; filename?: string; [key: string]: unknown }>;
+  contents?: Array<{
+    fileurl?: string;
+    filename?: string;
+    mimetype?: string;
+    [key: string]: unknown;
+  }>;
   [key: string]: unknown;
 }
 

@@ -1,18 +1,24 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { LessonsService } from './lessons.service';
+import { pickResourceFileUrl } from './lessons.service';
 
-describe('LessonsService', () => {
-  let service: LessonsService;
-
-  beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [LessonsService],
-    }).compile();
-
-    service = module.get<LessonsService>(LessonsService);
+describe('pickResourceFileUrl', () => {
+  it('returns null when empty', () => {
+    expect(pickResourceFileUrl(undefined)).toBeNull();
+    expect(pickResourceFileUrl([])).toBeNull();
   });
 
-  it('should be defined', () => {
-    expect(service).toBeDefined();
+  it('prefers PDF over other files', () => {
+    const url = pickResourceFileUrl([
+      { fileurl: 'https://m/pluginfile.php/1/a.docx', filename: 'a.docx' },
+      { fileurl: 'https://m/pluginfile.php/1/b.pdf', filename: 'b.pdf', mimetype: 'application/pdf' },
+    ]);
+    expect(url).toContain('b.pdf');
+  });
+
+  it('falls back to first file with url', () => {
+    const url = pickResourceFileUrl([
+      { filename: 'no-url' },
+      { fileurl: 'https://m/pluginfile.php/1/x.png', filename: 'x.png' },
+    ]);
+    expect(url).toContain('x.png');
   });
 });
