@@ -3,7 +3,6 @@ import {
   Controller,
   Delete,
   Get,
-  Headers,
   Param,
   ParseIntPipe,
   Patch,
@@ -14,7 +13,9 @@ import {
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { AdminGuard } from '../auth/admin.guard';
-import { extractBearerToken } from '../auth/auth-token.util';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { MoodleAuthGuard } from '../auth/moodle-auth.guard';
+import type { MoodleUser } from '../auth/moodle-user.types';
 import { CalendarService } from './calendar.service';
 import {
   CreateCalendarEventDto,
@@ -76,6 +77,27 @@ export class CalendarController {
   }
 
   @UseGuards(AdminGuard)
+  @Get('admin/shifts/:id/teachers')
+  adminListTeachers(@Param('id', ParseIntPipe) id: number) {
+    return this.calendarService.listTeachers(id);
+  }
+
+  @UseGuards(AdminGuard)
+  @Post('admin/shifts/:id/teachers')
+  adminAssignTeacher(@Param('id', ParseIntPipe) id: number, @Body() body: EnrollDto) {
+    return this.calendarService.assignTeacher(id, body, null);
+  }
+
+  @UseGuards(AdminGuard)
+  @Delete('admin/shifts/:id/teachers/:moodleUserId')
+  adminUnassignTeacher(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('moodleUserId', ParseIntPipe) moodleUserId: number,
+  ) {
+    return this.calendarService.unassignTeacher(id, moodleUserId);
+  }
+
+  @UseGuards(AdminGuard)
   @Get('admin/events')
   adminListEvents(@Query('shiftId') shiftId?: string) {
     const id = shiftId ? parseInt(shiftId, 10) : undefined;
@@ -102,98 +124,75 @@ export class CalendarController {
 
   // ——— Teacher ———
 
+  @UseGuards(MoodleAuthGuard)
   @Get('teacher/shifts')
-  async teacherShifts(@Headers('authorization') authHeader: string) {
-    const token = extractBearerToken(authHeader);
-    return this.calendarService.listTeacherShifts(token);
+  async teacherShifts(@CurrentUser() user: MoodleUser) {
+    return this.calendarService.listTeacherShifts(user.token);
   }
 
-  @Get('teacher/shifts/:id/enrollments')
-  async teacherListEnrollments(
-    @Headers('authorization') authHeader: string,
-    @Param('id', ParseIntPipe) id: number,
-  ) {
-    const token = extractBearerToken(authHeader);
-    await this.calendarService.assertTeacherShift(token, id);
-    return this.calendarService.listEnrollments(id);
+  @UseGuards(MoodleAuthGuard)
+  @Get('teacher/today')
+  async teacherToday(@CurrentUser() user: MoodleUser) {
+    return this.calendarService.getTeacherToday(user.token);
   }
 
-  @Post('teacher/shifts/:id/enrollments')
-  async teacherEnroll(
-    @Headers('authorization') authHeader: string,
-    @Param('id', ParseIntPipe) id: number,
-    @Body() body: EnrollDto,
-  ) {
-    const token = extractBearerToken(authHeader);
-    const { userId } = await this.calendarService.assertTeacherShift(token, id);
-    return this.calendarService.enroll(id, body, userId);
-  }
-
-  @Delete('teacher/shifts/:id/enrollments/:moodleUserId')
-  async teacherUnenroll(
-    @Headers('authorization') authHeader: string,
-    @Param('id', ParseIntPipe) id: number,
-    @Param('moodleUserId', ParseIntPipe) moodleUserId: number,
-  ) {
-    const token = extractBearerToken(authHeader);
-    await this.calendarService.assertTeacherShift(token, id);
-    return this.calendarService.unenroll(id, moodleUserId);
-  }
-
+  @UseGuards(MoodleAuthGuard)
   @Post('teacher/events')
   async teacherCreateEvent(
-    @Headers('authorization') authHeader: string,
+    @CurrentUser() user: MoodleUser,
     @Body() body: CreateCalendarEventDto,
   ) {
-    const token = extractBearerToken(authHeader);
-    await this.calendarService.assertTeacherShift(token, body.shiftId);
+    await this.calendarService.assertTeacherShift(user.token, body.shiftId);
     return this.calendarService.createEvent(body);
   }
 
+  @UseGuards(MoodleAuthGuard)
   @Patch('teacher/events/:id')
   async teacherUpdateEvent(
-    @Headers('authorization') authHeader: string,
+    @CurrentUser() user: MoodleUser,
     @Param('id', ParseIntPipe) id: number,
     @Body() body: UpdateCalendarEventDto,
   ) {
-    const token = extractBearerToken(authHeader);
     const existing = await this.calendarService.getEventOrFail(id);
-    await this.calendarService.assertTeacherShift(token, existing.shiftId);
+    await this.calendarService.assertTeacherShift(user.token, existing.shiftId);
+    if (body.shiftId != null && body.shiftId !== existing.shiftId) {
+      await this.calendarService.assertTeacherShift(user.token, body.shiftId);
+    }
     return this.calendarService.updateEvent(id, body);
   }
 
+  @UseGuards(MoodleAuthGuard)
   @Delete('teacher/events/:id')
   async teacherDeleteEvent(
-    @Headers('authorization') authHeader: string,
+    @CurrentUser() user: MoodleUser,
     @Param('id', ParseIntPipe) id: number,
   ) {
-    const token = extractBearerToken(authHeader);
     const existing = await this.calendarService.getEventOrFail(id);
-    await this.calendarService.assertTeacherShift(token, existing.shiftId);
+    await this.calendarService.assertTeacherShift(user.token, existing.shiftId);
     return this.calendarService.deleteEvent(id);
   }
 
   // ——— Student ———
 
+  @UseGuards(MoodleAuthGuard)
   @Get('me')
   async myCalendar(
-    @Headers('authorization') authHeader: string,
+    @CurrentUser() user: MoodleUser,
     @Query('from') from?: string,
     @Query('to') to?: string,
   ) {
-    const token = extractBearerToken(authHeader);
-    return this.calendarService.getMyOccurrences(token, from, to);
+    return this.calendarService.getMyOccurrences(user.token, from, to);
   }
 
+  @UseGuards(MoodleAuthGuard)
   @Get('me/ics')
   async myIcs(
-    @Headers('authorization') authHeader: string,
+    @CurrentUser() user: MoodleUser,
     @Query('from') from: string,
     @Query('to') to: string,
     @Res() res: Response,
   ) {
-    const token = extractBearerToken(authHeader);
-    const ics = await this.calendarService.getMyIcs(token, from, to);
+    const ics = await this.calendarService.getMyIcs(user.token, from, to);
     res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
     res.setHeader('Content-Disposition', 'attachment; filename="hopee-calendar.ics"');
     res.send(ics);

@@ -7,6 +7,7 @@ import { buildFileProxyUrl } from '@/core/utils/fileProxy';
 import { sanitizeHtml } from '@/core/utils/sanitize';
 import { ForumView } from '@/features/forums/components/ForumView';
 import { ExamView } from './ExamView';
+import { ResourceFileViewer } from './ResourceFileViewer';
 import { TaskView } from './TaskView';
 import '../styles/course-view.css';
 
@@ -249,7 +250,15 @@ alert('Failed to save progress');
                   return <TaskView module={activeModule} />;
                 }
                 if (moduleType === 'forum') {
-                  return <ForumView forumId={activeModule.instanceId || activeModule.id} />;
+                  if (!activeModule.instanceId) {
+                    return (
+                      <p className="page-description">
+                        Forum instance id missing for &quot;{activeModule.name}&quot;. Reload the
+                        course or check the Moodle forum activity.
+                      </p>
+                    );
+                  }
+                  return <ForumView forumId={activeModule.instanceId} />;
                 }
                 if (
                   moduleType === 'lesson' ||
@@ -280,24 +289,33 @@ alert('Failed to save progress');
                 if (moduleType === 'resource') {
                   const safeFileUrl = activeModule.fileUrl?.trim();
                   if (safeFileUrl && token) {
-                    const cleanUrl = safeFileUrl
-                      .replace('webservice/pluginfile.php', 'pluginfile.php')
-                      .replace(/[?&]forcedownload=1/g, '');
                     return (
-                      <iframe
-                        src={buildFileProxyUrl(cleanUrl, token)}
+                      <ResourceFileViewer
+                        fileUrl={safeFileUrl}
+                        token={token}
                         title={activeModule.name}
-                        style={{
-                          width: '100%',
-                          height: '70vh',
-                          minHeight: '500px',
-                          border: '1px solid var(--border-color)',
-                          borderRadius: '12px',
-                        }}
-                        allowFullScreen
+                        moodleUrl={activeModule.url || undefined}
                       />
                     );
                   }
+                  return (
+                    <div className="home-card" style={{ textAlign: 'center', padding: 28 }}>
+                      <p style={{ margin: '0 0 8px', color: 'var(--text-muted)' }}>
+                        No file URL available for &quot;{activeModule.name}&quot;.
+                      </p>
+                      <p style={{ margin: 0, fontSize: '0.9rem', color: '#94a3b8' }}>
+                        In Moodle, confirm the resource is a file (PDF) and you are enrolled in
+                        this course, then reload.
+                      </p>
+                      {activeModule.url ? (
+                        <p style={{ marginTop: 14 }}>
+                          <a href={activeModule.url} target="_blank" rel="noopener noreferrer">
+                            Open in Moodle
+                          </a>
+                        </p>
+                      ) : null}
+                    </div>
+                  );
                 }
                 return (
                   <p className="page-description">Learning content: {activeModule.name}</p>

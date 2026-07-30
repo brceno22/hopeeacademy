@@ -1,33 +1,36 @@
-import { Body, Controller, Get, Headers, Param, ParseIntPipe, Post } from '@nestjs/common';
-import { extractBearerToken } from '../auth/auth-token.util';
+import { Body, Controller, Get, Param, ParseIntPipe, Post, UseGuards } from '@nestjs/common';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { MoodleAuthGuard } from '../auth/moodle-auth.guard';
+import type { MoodleUser } from '../auth/moodle-user.types';
 import { MarkProgressDto } from './dto/mark-progress.dto';
 import { ProgressService } from './progress.service';
 
 @Controller('progress')
+@UseGuards(MoodleAuthGuard)
 export class ProgressController {
   constructor(private readonly progressService: ProgressService) {}
 
   @Post('mark')
-  async markAsCompleted(
-    @Body() body: MarkProgressDto,
-    @Headers('authorization') authHeader: string,
-  ) {
-    const token = extractBearerToken(authHeader);
-    return this.progressService.markAsCompleted(token, body.courseId, body.moduleId, body.type);
+  async markAsCompleted(@Body() body: MarkProgressDto, @CurrentUser() user: MoodleUser) {
+    return this.progressService.markAsCompleted(
+      user.token,
+      body.courseId,
+      body.moduleId,
+      body.type,
+      user.userId,
+    );
   }
 
   @Get('global')
-  async getGlobalProgress(@Headers('authorization') authHeader: string) {
-    const token = extractBearerToken(authHeader);
-    return this.progressService.getGlobalProgress(token);
+  async getGlobalProgress(@CurrentUser() user: MoodleUser) {
+    return this.progressService.getGlobalProgress(user.token, user.userId);
   }
 
   @Get('course/:courseId')
   async getCourseProgress(
     @Param('courseId', ParseIntPipe) courseId: number,
-    @Headers('authorization') authHeader: string,
+    @CurrentUser() user: MoodleUser,
   ) {
-    const token = extractBearerToken(authHeader);
-    return this.progressService.getCourseProgress(token, courseId);
+    return this.progressService.getCourseProgress(user.token, courseId, user.userId);
   }
 }

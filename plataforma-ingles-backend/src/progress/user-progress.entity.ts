@@ -1,6 +1,8 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, Unique, Index } from 'typeorm';
 
 @Entity('user_progress')
+@Unique(['userId', 'courseId', 'moduleId'])
+@Index(['userId', 'courseId'])
 export class UserProgress {
   @PrimaryGeneratedColumn()
   id!: number;

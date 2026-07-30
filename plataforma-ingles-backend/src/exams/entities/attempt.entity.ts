@@ -1,5 +1,8 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn } from 'typeorm';
 
+/** MC/TF → optionId; gap_fill → { blankIndex: word } */
+export type AttemptAnswerValue = number | Record<string, string>;
+
 @Entity('attempts')
 export class Attempt {
   @PrimaryGeneratedColumn()
@@ -15,7 +18,7 @@ export class Attempt {
   score!: number; // porcentaje 0-100
 
   @Column({ type: 'jsonb' })
-  answers!: Record<number, number>; // { questionId: optionId }
+  answers!: Record<string, AttemptAnswerValue>;
 
   @CreateDateColumn()
   finishedAt!: Date;

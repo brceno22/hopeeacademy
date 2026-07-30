@@ -3,22 +3,33 @@ import {
   CreateDateColumn,
   Entity,
   Index,
+  JoinColumn,
+  ManyToOne,
   OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { ScheduleShift } from '../calendar/schedule-shift.entity';
 import { AttendanceCheckIn } from './attendance-checkin.entity';
 
 export type AttendanceSessionStatus = 'open' | 'closed';
 
 @Entity('attendance_sessions')
-@Index(['moodleCourseId', 'sessionDate'], { unique: true })
+@Index(['shiftId', 'sessionDate'], { unique: true })
 export class AttendanceSession {
   @PrimaryGeneratedColumn()
   id!: number;
 
   @Column({ type: 'int' })
-  moodleCourseId!: number;
+  shiftId!: number;
+
+  @ManyToOne(() => ScheduleShift, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'shiftId' })
+  shift!: ScheduleShift;
+
+  /** @deprecated Prefer shiftId; kept nullable for legacy rows */
+  @Column({ type: 'int', nullable: true })
+  moodleCourseId!: number | null;
 
   /** YYYY-MM-DD (fecha de la clase) */
   @Column({ type: 'date' })

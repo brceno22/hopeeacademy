@@ -1,10 +1,11 @@
 import { Module } from '@nestjs/common';
+import { AuthModule } from '../auth/auth.module';
 import { ForumsController } from './forums.controller';
 import { ForumsService } from './forums.service';
-import { MoodleModule } from '../moodle/moodle.module'; // Ajustá la ruta si es necesario
+import { MoodleModule } from '../moodle/moodle.module';
 
 @Module({
-  imports: [MoodleModule],
+  imports: [MoodleModule, AuthModule],
   controllers: [ForumsController],
   providers: [ForumsService],
 })

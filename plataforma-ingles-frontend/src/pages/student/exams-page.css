@@ -1,0 +1,232 @@
+.exams-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.exams-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.exams-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 18px 20px;
+}
+
+.exams-card__title {
+  margin: 8px 0 4px;
+  font-size: 1.15rem;
+  color: #0f172a;
+}
+
+.exams-card__course {
+  margin: 0 0 6px;
+  font-size: 0.9rem;
+}
+
+.exams-card__course a {
+  color: #0071bc;
+  text-decoration: none;
+}
+
+.exams-card__course a:hover {
+  text-decoration: underline;
+}
+
+.exams-card__desc {
+  margin: 0 0 8px;
+  color: #64748b;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.exams-card__meta {
+  margin: 0;
+  color: #94a3b8;
+  font-size: 0.85rem;
+}
+
+.exams-status {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 6px;
+}
+
+.exams-status--pending {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.exams-status--failed {
+  background: #fff7ed;
+  color: #c2410c;
+}
+
+.exams-status--passed {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.exams-status--exhausted {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.exams-card__actions {
+  display: flex;
+  align-items: center;
+}
+
+.exams-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 96px;
+  padding: 10px 16px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #334155;
+  font-weight: 600;
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+
+.exams-btn--primary {
+  background: #0071bc;
+  border-color: #0071bc;
+  color: #fff;
+}
+
+.exams-btn--primary:hover {
+  background: #005a96;
+}
+
+.exams-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: flex-end;
+  margin-bottom: 8px;
+}
+
+.exams-select-label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.exams-select-label select {
+  min-width: 260px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  font: inherit;
+  background: #fff;
+}
+
+.exams-gradebook-wrap {
+  overflow-x: auto;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+}
+
+.exams-gradebook {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 480px;
+  font-size: 0.9rem;
+}
+
+.exams-gradebook th,
+.exams-gradebook td {
+  border-bottom: 1px solid #e2e8f0;
+  padding: 12px 14px;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.exams-gradebook th {
+  background: #f8fafc;
+  font-weight: 600;
+  color: #334155;
+}
+
+.exams-gradebook__student {
+  text-align: left !important;
+  min-width: 160px;
+  position: sticky;
+  left: 0;
+  background: #fff;
+  z-index: 1;
+}
+
+.exams-gradebook th.exams-gradebook__student {
+  background: #f8fafc;
+  z-index: 2;
+}
+
+.exams-gradebook__exam-title {
+  display: block;
+}
+
+.exams-gradebook__exam-sub {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #94a3b8;
+  margin-top: 2px;
+}
+
+.exams-gradebook__email {
+  display: block;
+  font-size: 0.8rem;
+  color: #94a3b8;
+  font-weight: 400;
+}
+
+.exams-gradebook__attempts {
+  display: block;
+  font-size: 0.7rem;
+  color: #94a3b8;
+  margin-top: 2px;
+}
+
+.exams-gradebook__cell--passed {
+  color: #047857;
+  font-weight: 700;
+}
+
+.exams-gradebook__cell--failed {
+  color: #c2410c;
+  font-weight: 600;
+}
+
+.exams-gradebook__cell--exhausted {
+  color: #64748b;
+  font-weight: 600;
+}
+
+.exams-gradebook__cell--pending {
+  color: #cbd5e1;
+}

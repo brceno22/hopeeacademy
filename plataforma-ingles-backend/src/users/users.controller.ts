@@ -1,19 +1,24 @@
 import {
-  BadRequestException,
   Body,
   Controller,
   Delete,
   Get,
-  Headers,
+  Param,
+  ParseIntPipe,
   Patch,
   Post,
   Query,
   UploadedFile,
+  UseGuards,
   UseInterceptors,
+  BadRequestException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
-import { extractBearerToken } from '../auth/auth-token.util';
+import { AdminGuard } from '../auth/admin.guard';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { MoodleAuthGuard } from '../auth/moodle-auth.guard';
+import type { MoodleUser } from '../auth/moodle-user.types';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { UpdatePrefsDto } from './dto/update-prefs.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
@@ -23,39 +28,31 @@ import { UsersService } from './users.service';
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
+  @UseGuards(MoodleAuthGuard)
   @Get('me')
-  me(@Headers('authorization') authHeader: string) {
-    const token = extractBearerToken(authHeader);
-    return this.usersService.getMe(token);
+  me(@CurrentUser() user: MoodleUser) {
+    return this.usersService.getMe(user.token);
   }
 
+  @UseGuards(MoodleAuthGuard)
   @Patch('me')
-  updateProfile(
-    @Headers('authorization') authHeader: string,
-    @Body() body: UpdateProfileDto,
-  ) {
-    const token = extractBearerToken(authHeader);
-    return this.usersService.updateProfile(token, body.firstname, body.lastname);
+  updateProfile(@CurrentUser() user: MoodleUser, @Body() body: UpdateProfileDto) {
+    return this.usersService.updateProfile(user.token, body.firstname, body.lastname);
   }
 
+  @UseGuards(MoodleAuthGuard)
   @Patch('me/prefs')
-  updatePrefs(
-    @Headers('authorization') authHeader: string,
-    @Body() body: UpdatePrefsDto,
-  ) {
-    const token = extractBearerToken(authHeader);
-    return this.usersService.updatePrefs(token, body.avatarColor);
+  updatePrefs(@CurrentUser() user: MoodleUser, @Body() body: UpdatePrefsDto) {
+    return this.usersService.updatePrefs(user.token, body.avatarColor);
   }
 
+  @UseGuards(MoodleAuthGuard)
   @Patch('me/password')
-  changePassword(
-    @Headers('authorization') authHeader: string,
-    @Body() body: ChangePasswordDto,
-  ) {
-    const token = extractBearerToken(authHeader);
-    return this.usersService.changePassword(token, body.currentPassword, body.newPassword);
+  changePassword(@CurrentUser() user: MoodleUser, @Body() body: ChangePasswordDto) {
+    return this.usersService.changePassword(user.token, body.currentPassword, body.newPassword);
   }
 
+  @UseGuards(MoodleAuthGuard)
   @Post('me/avatar')
   @UseInterceptors(
     FileInterceptor('file', {
@@ -64,7 +61,7 @@ export class UsersController {
     }),
   )
   updateAvatar(
-    @Headers('authorization') authHeader: string,
+    @CurrentUser() user: MoodleUser,
     @UploadedFile()
     file?: {
       buffer: Buffer;
@@ -73,26 +70,30 @@ export class UsersController {
       size: number;
     },
   ) {
-    const token = extractBearerToken(authHeader);
     if (!file) {
       throw new BadRequestException('Image file is required (field name: file)');
     }
-    return this.usersService.updateAvatar(token, file);
+    return this.usersService.updateAvatar(user.token, file);
   }
 
+  @UseGuards(MoodleAuthGuard)
   @Delete('me/avatar')
-  deleteAvatar(@Headers('authorization') authHeader: string) {
-    const token = extractBearerToken(authHeader);
-    return this.usersService.deleteAvatar(token);
+  deleteAvatar(@CurrentUser() user: MoodleUser) {
+    return this.usersService.deleteAvatar(user.token);
   }
 
+  @UseGuards(AdminGuard)
   @Get('buscar')
-  findOne(
-    @Query('email') email?: string,
-    @Query('username') username?: string,
-  ) {
+  findOne(@Query('email') email?: string, @Query('username') username?: string) {
     if (email) return this.usersService.findOneByEmail(email);
     if (username) return this.usersService.findOneByUsername(username);
-    return { error: 'Provide ?email= or ?username=' };
+    throw new BadRequestException('Provide ?email= or ?username=');
+  }
+
+  @UseGuards(AdminGuard)
+  @Get('search')
+  search(@Query('q') q?: string) {
+    if (!q?.trim()) throw new BadRequestException('Provide ?q=');
+    return this.usersService.searchUsers(q);
   }
 }

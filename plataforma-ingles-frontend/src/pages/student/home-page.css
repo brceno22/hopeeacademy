@@ -196,3 +196,119 @@
   font-style: italic;
   line-height: 1.4;
 }
+
+/* =========================================
+   TEACHER — CLASSES TODAY
+========================================= */
+.teacher-today {
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  border-radius: 20px;
+  padding: 24px 28px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.01);
+}
+
+.teacher-today__header h2 {
+  margin: 0 0 4px;
+  font-size: 22px;
+  color: var(--text-main);
+}
+
+.teacher-today__header p {
+  margin: 0 0 18px;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.teacher-today__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.teacher-today__item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-surface, #fafafa);
+}
+
+.teacher-today__item--done {
+  opacity: 0.65;
+}
+
+.teacher-today__item--live {
+  border-color: rgba(255, 123, 0, 0.35);
+  background: #fff8f0;
+}
+
+.teacher-today__title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.teacher-today__meta {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.teacher-today__badge {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 3px 8px;
+  border-radius: 999px;
+}
+
+.teacher-today__badge--upcoming {
+  background: #e3f2fd;
+  color: #0071bc;
+}
+
+.teacher-today__badge--live {
+  background: #fff3e0;
+  color: #e06c00;
+}
+
+.teacher-today__badge--done {
+  background: #eceff1;
+  color: #607d8b;
+}
+
+.teacher-today__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.teacher-today__btn {
+  width: auto;
+  min-width: 140px;
+  padding: 10px 14px;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@media (max-width: 640px) {
+  .teacher-today__actions {
+    width: 100%;
+  }
+
+  .teacher-today__btn {
+    flex: 1;
+  }
+}

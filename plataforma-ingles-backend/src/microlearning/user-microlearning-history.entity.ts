@@ -1,6 +1,8 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, Unique, Index } from 'typeorm';
 
 @Entity('user_microlearning_history')
+@Unique(['userId', 'contentId'])
+@Index(['userId'])
 export class UserMicrolearningHistory {
   @PrimaryGeneratedColumn()
   id!: number;

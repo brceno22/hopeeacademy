@@ -1,8 +1,33 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import api from '@/core/api/axios';
 import { useAuth } from '@/core/context/AuthContext';
 import { useMicrolearningToday } from '@/core/hooks/useMicrolearningToday';
 import './home-page.css';
+
+type ClassStatus = 'upcoming' | 'live' | 'done';
+
+interface TeacherTodayClass {
+  id: string;
+  title: string;
+  startsAt: string;
+  endsAt: string;
+  meetUrl: string | null;
+  shiftId: number;
+  shiftName: string;
+  folderName: string | null;
+  status: ClassStatus;
+}
+
+function formatTime(iso: string) {
+  return new Date(iso).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+}
+
+const STATUS_LABEL: Record<ClassStatus, string> = {
+  upcoming: 'Upcoming',
+  live: 'Live',
+  done: 'Done',
+};
 
 export const HomePage: React.FC = () => {
   const navigate = useNavigate();
@@ -10,6 +35,23 @@ export const HomePage: React.FC = () => {
   const { data } = useMicrolearningToday();
   const streak = data?.currentStreak ?? 0;
   const firstName = (user?.fullName || 'Student').split(' ')[0];
+
+  const [teacherClasses, setTeacherClasses] = useState<TeacherTodayClass[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const { data: rows } = await api.get<TeacherTodayClass[]>('/calendar/teacher/today');
+        if (!cancelled) setTeacherClasses(rows);
+      } catch {
+        if (!cancelled) setTeacherClasses([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <div className="home-container">
@@ -22,6 +64,56 @@ export const HomePage: React.FC = () => {
           <span className="flag-bubble">🇬🇧</span>
         </div>
       </section>
+
+      {teacherClasses.length > 0 && (
+        <section className="teacher-today">
+          <div className="teacher-today__header">
+            <h2>Your classes today</h2>
+            <p>Classrooms you teach today — join Meet and take attendance.</p>
+          </div>
+          <ul className="teacher-today__list">
+            {teacherClasses.map((c) => (
+              <li
+                key={c.id}
+                className={`teacher-today__item teacher-today__item--${c.status}`}
+              >
+                <div className="teacher-today__main">
+                  <div className="teacher-today__title-row">
+                    <strong>{c.shiftName}</strong>
+                    <span className={`teacher-today__badge teacher-today__badge--${c.status}`}>
+                      {STATUS_LABEL[c.status]}
+                    </span>
+                  </div>
+                  <p className="teacher-today__meta">
+                    {c.folderName ? `${c.folderName} · ` : ''}
+                    {formatTime(c.startsAt)} – {formatTime(c.endsAt)}
+                    {c.title ? ` · ${c.title}` : ''}
+                  </p>
+                </div>
+                <div className="teacher-today__actions">
+                  {c.meetUrl ? (
+                    <a
+                      className="btn-card primary teacher-today__btn"
+                      href={c.meetUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Join class
+                    </a>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="btn-card secondary teacher-today__btn"
+                    onClick={() => navigate(`/app/asistencia?shiftId=${c.shiftId}`)}
+                  >
+                    Take attendance
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <div className="home-grid">
         <div className="home-card action-card">

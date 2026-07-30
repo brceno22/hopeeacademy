@@ -38,10 +38,11 @@ export class TasksService {
     };
   }
 
-  async getTask(assignId: number) {
+  async getTask(assignId: number, userToken?: string) {
     const data = await this.moodleService.request<{ courses?: MoodleAssignCourse[] }>(
       'mod_assign_get_assignments',
       { 'courseids[0]': 0 },
+      userToken,
     );
 
     if (!data?.courses) {

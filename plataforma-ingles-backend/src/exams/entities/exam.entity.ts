@@ -19,6 +19,14 @@ export class Exam {
   @Column({ default: true })
   active!: boolean;
 
+  /** Máximo de intentos por alumno (default 3). */
+  @Column({ type: 'int', default: 3 })
+  maxAttempts!: number;
+
+  /** Umbral de aprobación 0–100 (default 60). */
+  @Column({ type: 'int', default: 60 })
+  passThreshold!: number;
+
   @CreateDateColumn()
   createdAt!: Date;
 

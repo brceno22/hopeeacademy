@@ -1,5 +1,7 @@
-import { Body, Controller, Get, Headers, HttpCode, HttpStatus, Post } from '@nestjs/common';
-import { extractBearerToken } from './auth-token.util';
+import { Body, Controller, Get, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
+import { CurrentUser } from './decorators/current-user.decorator';
+import { MoodleAuthGuard } from './moodle-auth.guard';
+import type { MoodleUser } from './moodle-user.types';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 
@@ -13,9 +15,9 @@ export class AuthController {
     return this.authService.login(body.username, body.password);
   }
 
+  @UseGuards(MoodleAuthGuard)
   @Get('capabilities')
-  capabilities(@Headers('authorization') authHeader: string) {
-    const token = extractBearerToken(authHeader);
-    return this.authService.getCapabilities(token);
+  capabilities(@CurrentUser() user: MoodleUser) {
+    return this.authService.getCapabilities(user.token, user.userId);
   }
 }

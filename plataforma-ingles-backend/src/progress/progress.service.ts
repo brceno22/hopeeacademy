@@ -1,4 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { UserProgress } from './user-progress.entity';
@@ -14,10 +18,26 @@ export class ProgressService {
     private readonly coursesService: CoursesService,
   ) {}
 
-  async markAsCompleted(token: string, courseId: number, moduleId: number, type: string) {
-    const userId = await this.moodleService.getUserIdFromToken(token);
+  async markAsCompleted(
+    token: string,
+    courseId: number,
+    moduleId: number,
+    type: string,
+    knownUserId?: number,
+  ) {
+    const userId = knownUserId ?? (await this.moodleService.getUserIdFromToken(token));
 
-    // Verificamos si ya existe para hacerlo idempotente
+    const enrolled = await this.moodleService.isEnrolledInCourse(token, courseId, userId);
+    if (!enrolled) {
+      throw new ForbiddenException('No estás matriculado en este curso');
+    }
+
+    const sections = await this.coursesService.getCourseContents(courseId, token);
+    const moduleExists = sections.some((s) => s.modules?.some((m) => m.id === moduleId));
+    if (!moduleExists) {
+      throw new BadRequestException('El módulo no pertenece a este curso');
+    }
+
     const existing = await this.progressRepository.findOne({
       where: { userId, courseId, moduleId },
     });
@@ -26,31 +46,38 @@ export class ProgressService {
       return { success: true, message: 'Ya estaba marcado como completado', data: existing };
     }
 
-    const newProgress = this.progressRepository.create({
-      userId,
-      courseId,
-      moduleId,
-      type,
-    });
-
-    const saved = await this.progressRepository.save(newProgress);
-    return { success: true, message: 'Marcado como completado', data: saved };
+    try {
+      const newProgress = this.progressRepository.create({
+        userId,
+        courseId,
+        moduleId,
+        type,
+      });
+      const saved = await this.progressRepository.save(newProgress);
+      return { success: true, message: 'Marcado como completado', data: saved };
+    } catch {
+      const race = await this.progressRepository.findOne({
+        where: { userId, courseId, moduleId },
+      });
+      if (race) {
+        return { success: true, message: 'Ya estaba marcado como completado', data: race };
+      }
+      throw new BadRequestException('No se pudo guardar el progreso');
+    }
   }
 
-  async getCourseProgress(token: string, courseId: number) {
-    const userId = await this.moodleService.getUserIdFromToken(token);
+  async getCourseProgress(token: string, courseId: number, knownUserId?: number) {
+    const userId = knownUserId ?? (await this.moodleService.getUserIdFromToken(token));
 
-    // 1. Traemos los contenidos del curso usando el servicio que ya tenés armado
-    const sections = await this.coursesService.getCourseContents(courseId);
+    const sections = await this.coursesService.getCourseContents(courseId, token);
 
-    // 2. Aplanamos y filtramos los foros
     let totalModulesCount = 0;
     const validModulesIds: number[] = [];
 
-    sections.forEach((section: any) => {
+    sections.forEach((section) => {
       if (section.modules) {
-        section.modules.forEach((mod: any) => {
-          if (mod.type !== 'forum' && mod.modname !== 'forum') {
+        section.modules.forEach((mod) => {
+          if (mod.type !== 'forum') {
             totalModulesCount++;
             validModulesIds.push(mod.id);
           }
@@ -58,18 +85,19 @@ export class ProgressService {
       }
     });
 
-    // 3. Consultamos cuántos de esos módulos el alumno ya completó en Postgres
     const completedRecords = await this.progressRepository.find({
       where: { userId, courseId },
     });
 
-    // Filtramos por las dudas de que haya quedado algún registro huérfano de un módulo borrado en Moodle
     const completedModuleIds = completedRecords
-      .map(record => record.moduleId)
-      .filter(id => validModulesIds.includes(id));
+      .map((record) => record.moduleId)
+      .filter((id) => validModulesIds.includes(id));
 
     const completedModulesCount = completedModuleIds.length;
-    const percentage = totalModulesCount > 0 ? Math.round((completedModulesCount / totalModulesCount) * 100) : 0;
+    const percentage =
+      totalModulesCount > 0
+        ? Math.round((completedModulesCount / totalModulesCount) * 100)
+        : 0;
 
     return {
       courseId,
@@ -80,44 +108,53 @@ export class ProgressService {
     };
   }
 
-  async getGlobalProgress(token: string) {
-    const userId = await this.moodleService.getUserIdFromToken(token);
+  async getGlobalProgress(token: string, knownUserId?: number) {
+    const userId = knownUserId ?? (await this.moodleService.getUserIdFromToken(token));
 
-    // 1. Traemos a qué clases/cursos tiene acceso
     const enrolledCourses = await this.moodleService.request(
       'core_enrol_get_users_courses',
       { userid: userId },
-      token
+      token,
     );
 
     const coursesList = Array.isArray(enrolledCourses) ? enrolledCourses : [];
-    const validCourses = coursesList.filter((c: any) => c.id && c.id > 1);
-    
+    const validCourses = coursesList.filter((c: { id?: number }) => c.id && c.id > 1);
+
     const totalCourses = validCourses.length;
     let totalCompletedCourses = 0;
-    const coursesProgress: any[] = [];
+    const coursesProgress: Array<{
+      courseId: number;
+      name: string;
+      percentage: number;
+    }> = [];
 
-    // 2. Calculamos el progreso curso por curso para armar la vista global
-    for (const course of validCourses) {
-      try {
-        const courseProgress = await this.getCourseProgress(token, course.id);
-        coursesProgress.push({
-          courseId: course.id,
-          name: course.fullname || course.displayname,
-          percentage: courseProgress.percentage
-        });
-        
-        // Si el curso está al 100%, suma uno al total de cursos completados
-        if (courseProgress.percentage === 100) {
-          totalCompletedCourses++;
-        }
-      } catch (e) {
-        // Si falla un curso (ej: no tiene contenidos aún), lo ignoramos y seguimos
-        continue;
+    const concurrency = 4;
+    for (let i = 0; i < validCourses.length; i += concurrency) {
+      const batch = validCourses.slice(i, i + concurrency);
+      const results = await Promise.all(
+        batch.map(async (course: { id: number; fullname?: string; displayname?: string }) => {
+          try {
+            const courseProgress = await this.getCourseProgress(token, course.id, userId);
+            return {
+              courseId: course.id,
+              name: course.fullname || course.displayname || `Curso ${course.id}`,
+              percentage: courseProgress.percentage,
+            };
+          } catch {
+            return null;
+          }
+        }),
+      );
+
+      for (const row of results) {
+        if (!row) continue;
+        coursesProgress.push(row);
+        if (row.percentage === 100) totalCompletedCourses++;
       }
     }
 
-    const globalPercentage = totalCourses > 0 ? Math.round((totalCompletedCourses / totalCourses) * 100) : 0;
+    const globalPercentage =
+      totalCourses > 0 ? Math.round((totalCompletedCourses / totalCourses) * 100) : 0;
 
     return {
       totalCourses,

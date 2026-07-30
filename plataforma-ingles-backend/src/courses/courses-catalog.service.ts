@@ -14,6 +14,7 @@ import { UpdateCourseFolderDto } from './dto/update-course-folder.dto';
 import { CourseFolderLink } from './entities/course-folder-link.entity';
 import { CourseFolder } from './entities/course-folder.entity';
 import { CoursesService, MoodleCourseSummary } from './courses.service';
+import { ProgramEnrollmentSyncService } from './program-enrollment-sync.service';
 
 export interface CourseInTree extends MoodleCourseSummary {
   linkId: number;
@@ -40,6 +41,7 @@ export class CoursesCatalogService {
     @InjectRepository(CourseFolderLink)
     private readonly linkRepo: Repository<CourseFolderLink>,
     private readonly coursesService: CoursesService,
+    private readonly programSync: ProgramEnrollmentSyncService,
     @Inject(CACHE_MANAGER) private readonly cache: Cache,
   ) {}
 
@@ -47,17 +49,21 @@ export class CoursesCatalogService {
    * Árbol para el alumno: carpetas + cursos Moodle asignados.
    * Solo incluye cursos a los que el usuario está inscripto (token Moodle).
    */
-  async getTreeForStudent(moodleUserToken?: string): Promise<CourseFolderTreeNode[]> {
-    const tokenKey = moodleUserToken ? moodleUserToken.slice(0, 16) : 'anon';
-    const cacheKey = `courses:tree:student:${tokenKey}`;
+  async getTreeForStudent(
+    moodleUserToken: string,
+    userId: number,
+  ): Promise<CourseFolderTreeNode[]> {
+    const version = (await this.cache.get<number>('courses:tree:version')) ?? 0;
+    const cacheKey = `courses:tree:student:v${version}:${userId}`;
     const cached = await this.cache.get<CourseFolderTreeNode[]>(cacheKey);
     if (cached) return cached;
 
-    const allCourses = await this.coursesService.findAllForUser(moodleUserToken);
+    const allCourses = await this.coursesService.findAllForUser(moodleUserToken, userId);
     const allowedIds = new Set(allCourses.map((c) => c.id));
     const tree = await this.buildTree(allCourses, allowedIds);
-    await this.cache.set(cacheKey, tree, CoursesCatalogService.TREE_TTL_MS);
-    return tree;
+    const pruned = this.pruneEmptyFolders(tree);
+    await this.cache.set(cacheKey, pruned, CoursesCatalogService.TREE_TTL_MS);
+    return pruned;
   }
 
   /** Árbol completo para admin (todos los cursos Moodle). */
@@ -75,6 +81,8 @@ export class CoursesCatalogService {
 
   private async invalidateTreeCache(): Promise<void> {
     await this.cache.del('courses:tree:admin');
+    const version = (await this.cache.get<number>('courses:tree:version')) ?? 0;
+    await this.cache.set('courses:tree:version', version + 1, 0);
   }
 
   async createFolder(dto: CreateCourseFolderDto): Promise<CourseFolder> {
@@ -150,6 +158,15 @@ export class CoursesCatalogService {
     });
     const saved = await this.linkRepo.save(link);
     await this.invalidateTreeCache();
+
+    try {
+      await this.programSync.syncCourseToExistingMembers(folderId, moodleCourseId);
+    } catch (err) {
+      await this.linkRepo.delete(saved.id);
+      await this.invalidateTreeCache();
+      throw err;
+    }
+
     return saved;
   }
 
@@ -210,6 +227,19 @@ export class CoursesCatalogService {
         });
 
     return build(null);
+  }
+
+  /**
+   * Quita carpetas sin cursos propios ni en descendientes.
+   * Así el alumno solo ve programas/niveles donde está enrolado.
+   */
+  pruneEmptyFolders(nodes: CourseFolderTreeNode[]): CourseFolderTreeNode[] {
+    return nodes
+      .map((node) => {
+        const children = this.pruneEmptyFolders(node.children ?? []);
+        return { ...node, children };
+      })
+      .filter((node) => (node.courses?.length ?? 0) > 0 || (node.children?.length ?? 0) > 0);
   }
 
   private async isDescendant(ancestorId: number, nodeId: number): Promise<boolean> {

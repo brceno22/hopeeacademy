@@ -419,6 +419,69 @@
   flex-wrap: wrap;
 }
 
+.admin-autocomplete {
+  position: relative;
+  width: 100%;
+}
+
+.admin-autocomplete__list {
+  position: absolute;
+  z-index: 20;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  margin: 0;
+  padding: 6px 0;
+  list-style: none;
+  max-height: 260px;
+  overflow-y: auto;
+  background: var(--bg-color, #fff);
+  border: 1px solid var(--border-color, #ddd);
+  border-radius: 10px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.12);
+}
+
+.admin-autocomplete__list li {
+  margin: 0;
+  padding: 0;
+  border: none;
+  display: block;
+}
+
+.admin-autocomplete__item {
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: inherit;
+  font: inherit;
+}
+
+.admin-autocomplete__item:hover,
+.admin-autocomplete__item:focus {
+  background: rgba(0, 113, 188, 0.08);
+}
+
+.admin-autocomplete__item strong {
+  font-size: 0.92rem;
+}
+
+.admin-autocomplete__item span {
+  font-size: 0.8rem;
+  color: var(--text-muted, #64748b);
+}
+
+.admin-autocomplete__empty {
+  padding: 10px 14px;
+  font-size: 0.85rem;
+  color: var(--text-muted, #64748b);
+}
+
 .admin-modal-backdrop {
   position: fixed;
   inset: 0;

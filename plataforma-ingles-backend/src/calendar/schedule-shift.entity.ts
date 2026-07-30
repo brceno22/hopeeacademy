@@ -10,6 +10,7 @@ import {
 } from 'typeorm';
 import { CourseFolder } from '../courses/entities/course-folder.entity';
 import { ShiftEnrollment } from './shift-enrollment.entity';
+import { ShiftTeacher } from './shift-teacher.entity';
 import { CalendarEvent } from './calendar-event.entity';
 
 @Entity('schedule_shifts')
@@ -61,6 +62,9 @@ export class ScheduleShift {
 
   @OneToMany(() => ShiftEnrollment, (e) => e.shift)
   enrollments!: ShiftEnrollment[];
+
+  @OneToMany(() => ShiftTeacher, (t) => t.shift)
+  teachers!: ShiftTeacher[];
 
   @OneToMany(() => CalendarEvent, (e) => e.shift)
   events!: CalendarEvent[];

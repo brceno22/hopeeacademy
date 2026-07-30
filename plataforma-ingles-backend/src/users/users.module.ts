@@ -1,7 +1,8 @@
 import { HttpModule } from '@nestjs/axios';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { MoodleModule } from 'src/moodle/moodle.module';
+import { AuthModule } from '../auth/auth.module';
+import { MoodleModule } from '../moodle/moodle.module';
 import { UserProfilePrefs } from './user-profile-prefs.entity';
 import { UsersController } from './users.controller';
 import { UsersService } from './users.service';
@@ -9,6 +10,7 @@ import { UsersService } from './users.service';
 @Module({
   imports: [
     MoodleModule,
+    AuthModule,
     TypeOrmModule.forFeature([UserProfilePrefs]),
     HttpModule.register({
       timeout: 30_000,

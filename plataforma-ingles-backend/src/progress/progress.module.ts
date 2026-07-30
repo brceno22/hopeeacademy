@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-
+import { AuthModule } from '../auth/auth.module';
 import { UserProgress } from './user-progress.entity';
 import { MoodleModule } from '../moodle/moodle.module';
 import { CoursesModule } from '../courses/courses.module';
@@ -12,6 +12,7 @@ import { ProgressController } from './progress.controller';
     TypeOrmModule.forFeature([UserProgress]),
     MoodleModule,
     CoursesModule,
+    AuthModule,
   ],
   controllers: [ProgressController],
   providers: [ProgressService],

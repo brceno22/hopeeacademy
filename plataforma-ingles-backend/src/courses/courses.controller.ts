@@ -3,7 +3,6 @@ import {
   Controller,
   Delete,
   Get,
-  Headers,
   Param,
   ParseIntPipe,
   Patch,
@@ -11,7 +10,9 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AdminGuard } from '../auth/admin.guard';
-import { extractOptionalBearerToken } from '../auth/auth-token.util';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { MoodleAuthGuard } from '../auth/moodle-auth.guard';
+import type { MoodleUser } from '../auth/moodle-user.types';
 import { CoursesCatalogService } from './courses-catalog.service';
 import { CoursesService } from './courses.service';
 import { AssignCourseToFolderDto } from './dto/assign-course.dto';
@@ -25,19 +26,21 @@ export class CoursesController {
     private readonly catalogService: CoursesCatalogService,
   ) {}
 
-  /** Listado plano. Token opcional: Bearer del alumno. */
+  /** Listado plano de cursos del alumno autenticado. */
+  @UseGuards(MoodleAuthGuard)
   @Get()
-  findAll(@Headers('authorization') auth?: string) {
-    return this.coursesService.findAllForUser(extractOptionalBearerToken(auth));
+  findAll(@CurrentUser() user: MoodleUser) {
+    return this.coursesService.findAllForUser(user.token, user.userId);
   }
 
   /**
    * Mis Cursos en jerarquía: carpetas + cursos Moodle asignados.
    * El contenido del curso sigue en GET /courses/:id/contents
    */
+  @UseGuards(MoodleAuthGuard)
   @Get('tree')
-  getTree(@Headers('authorization') auth?: string) {
-    return this.catalogService.getTreeForStudent(extractOptionalBearerToken(auth));
+  getTree(@CurrentUser() user: MoodleUser) {
+    return this.catalogService.getTreeForStudent(user.token, user.userId);
   }
 
   @UseGuards(AdminGuard)
@@ -94,8 +97,12 @@ export class CoursesController {
     return this.catalogService.seedDefaultFolders();
   }
 
+  @UseGuards(MoodleAuthGuard)
   @Get(':id/contents')
-  getCourseContents(@Param('id', ParseIntPipe) id: number) {
-    return this.coursesService.getCourseContents(id);
+  getCourseContents(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: MoodleUser,
+  ) {
+    return this.coursesService.getCourseContents(id, user.token);
   }
 }

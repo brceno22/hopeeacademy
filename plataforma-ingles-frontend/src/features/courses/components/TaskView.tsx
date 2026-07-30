@@ -18,8 +18,6 @@ export const TaskView: React.FC<TaskViewProps> = ({ module }) => {
   const [error, setError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const token = localStorage.getItem('token');
-
   useEffect(() => {
     if (!module.instanceId) { setLoading(false); return; }
     fetchStatus();
@@ -28,7 +26,7 @@ export const TaskView: React.FC<TaskViewProps> = ({ module }) => {
   const fetchStatus = async () => {
     setLoading(true);
     try {
-      const res = await api.get(`/tasks/${module.instanceId}/status`, { headers: { 'x-user-token': token } });
+      const res = await api.get(`/tasks/${module.instanceId}/status`);
       setStatus(res.data);
     } catch (err) { setError('Could not load assignment status.'); } 
     finally { setLoading(false); }
@@ -49,7 +47,7 @@ export const TaskView: React.FC<TaskViewProps> = ({ module }) => {
         });
       }
       await api.post(`/tasks/${module.instanceId}/submit`, {
-        token, text, fileName, fileBase64, fileMimeType, userId: parseInt(localStorage.getItem('moodleUserId') || '0'),
+        text, fileName, fileBase64, fileMimeType,
       });
       setSuccess('Assignment submitted successfully! ✅');
       await fetchStatus(); setText(''); setFile(null);

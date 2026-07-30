@@ -2,90 +2,81 @@ import {
   Body,
   Controller,
   Get,
-  Headers,
   Param,
   ParseIntPipe,
   Patch,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
-import { extractBearerToken } from '../auth/auth-token.util';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { MoodleAuthGuard } from '../auth/moodle-auth.guard';
+import type { MoodleUser } from '../auth/moodle-user.types';
 import { AttendanceService } from './attendance.service';
-import { CreateAttendanceSessionDto } from './dto/attendance.dto';
+import { CreateAttendanceSessionDto, MarkAttendanceDto } from './dto/attendance.dto';
 
 @Controller('attendance')
+@UseGuards(MoodleAuthGuard)
 export class AttendanceController {
   constructor(private readonly attendanceService: AttendanceService) {}
 
-  @Get('open')
-  async getOpenSessions(@Headers('authorization') authHeader: string) {
-    const token = extractBearerToken(authHeader);
-    return this.attendanceService.getOpenSessionsForStudent(token);
-  }
-
   @Get('me')
-  async getMyHistory(@Headers('authorization') authHeader: string) {
-    const token = extractBearerToken(authHeader);
-    return this.attendanceService.getMyHistory(token);
+  async getMyHistory(@CurrentUser() user: MoodleUser) {
+    return this.attendanceService.getMyHistory(user.token);
   }
 
-  @Get('teacher/courses')
-  async getTeacherCourses(@Headers('authorization') authHeader: string) {
-    const token = extractBearerToken(authHeader);
-    return this.attendanceService.getTeacherCourses(token);
+  @Get('teacher/shifts')
+  async getTeacherShifts(@CurrentUser() user: MoodleUser) {
+    return this.attendanceService.getTeacherShifts(user.token);
   }
 
   @Get('teacher/sessions')
   async listTeacherSessions(
-    @Headers('authorization') authHeader: string,
-    @Query('courseId', ParseIntPipe) courseId: number,
+    @CurrentUser() user: MoodleUser,
+    @Query('shiftId', ParseIntPipe) shiftId: number,
   ) {
-    const token = extractBearerToken(authHeader);
-    return this.attendanceService.listTeacherSessions(token, courseId);
+    return this.attendanceService.listTeacherSessions(user.token, shiftId);
   }
 
   @Post('sessions')
   async createSession(
-    @Headers('authorization') authHeader: string,
+    @CurrentUser() user: MoodleUser,
     @Body() body: CreateAttendanceSessionDto,
   ) {
-    const token = extractBearerToken(authHeader);
-    return this.attendanceService.createOrGetSession(token, body);
+    return this.attendanceService.createOrGetSession(user.token, body);
   }
 
   @Patch('sessions/:id/open')
   async openSession(
-    @Headers('authorization') authHeader: string,
+    @CurrentUser() user: MoodleUser,
     @Param('id', ParseIntPipe) id: number,
   ) {
-    const token = extractBearerToken(authHeader);
-    return this.attendanceService.openSession(token, id);
+    return this.attendanceService.openSession(user.token, id);
   }
 
   @Patch('sessions/:id/close')
   async closeSession(
-    @Headers('authorization') authHeader: string,
+    @CurrentUser() user: MoodleUser,
     @Param('id', ParseIntPipe) id: number,
   ) {
-    const token = extractBearerToken(authHeader);
-    return this.attendanceService.closeSession(token, id);
+    return this.attendanceService.closeSession(user.token, id);
   }
 
   @Get('sessions/:id')
   async getRoster(
-    @Headers('authorization') authHeader: string,
+    @CurrentUser() user: MoodleUser,
     @Param('id', ParseIntPipe) id: number,
   ) {
-    const token = extractBearerToken(authHeader);
-    return this.attendanceService.getSessionRoster(token, id);
+    return this.attendanceService.getSessionRoster(user.token, id);
   }
 
-  @Post('sessions/:id/check-in')
-  async checkIn(
-    @Headers('authorization') authHeader: string,
+  @Patch('sessions/:id/roster/:moodleUserId')
+  async markAttendance(
+    @CurrentUser() user: MoodleUser,
     @Param('id', ParseIntPipe) id: number,
+    @Param('moodleUserId', ParseIntPipe) moodleUserId: number,
+    @Body() body: MarkAttendanceDto,
   ) {
-    const token = extractBearerToken(authHeader);
-    return this.attendanceService.checkIn(token, id);
+    return this.attendanceService.markAttendance(user.token, id, moodleUserId, body);
   }
 }

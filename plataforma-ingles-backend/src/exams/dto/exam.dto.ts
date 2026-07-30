@@ -2,14 +2,19 @@ import { Type } from 'class-transformer';
 import {
   IsArray,
   IsBoolean,
+  IsIn,
   IsInt,
   IsNotEmpty,
   IsObject,
   IsOptional,
   IsString,
+  Max,
   Min,
   ValidateNested,
 } from 'class-validator';
+
+export const QUESTION_TYPES = ['multiple_choice', 'true_false', 'gap_fill'] as const;
+export type QuestionTypeDto = (typeof QUESTION_TYPES)[number];
 
 export class ExamOptionDto {
   @IsOptional()
@@ -34,13 +39,39 @@ export class ExamQuestionDto {
   text!: string;
 
   @IsOptional()
+  @IsIn(QUESTION_TYPES)
+  type?: QuestionTypeDto;
+
+  @IsOptional()
+  @IsString()
+  imageUrl?: string | null;
+
+  @IsOptional()
+  @IsString()
+  audioUrl?: string | null;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  wordBank?: string[];
+
+  @IsOptional()
+  @IsObject()
+  correctBlanks?: Record<string, string>;
+
+  @IsOptional()
   @IsInt()
   sortOrder?: number;
 
+  @IsOptional()
+  @IsInt()
+  order?: number;
+
+  @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => ExamOptionDto)
-  options!: ExamOptionDto[];
+  options?: ExamOptionDto[];
 }
 
 export class CreateExamDto {
@@ -59,6 +90,18 @@ export class CreateExamDto {
   @IsOptional()
   @IsBoolean()
   active?: boolean;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(20)
+  maxAttempts?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(100)
+  passThreshold?: number;
 
   @IsArray()
   @ValidateNested({ each: true })
@@ -86,6 +129,18 @@ export class UpdateExamDto {
   active?: boolean;
 
   @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(20)
+  maxAttempts?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(100)
+  passThreshold?: number;
+
+  @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => ExamQuestionDto)
@@ -93,10 +148,6 @@ export class UpdateExamDto {
 }
 
 export class SubmitExamDto {
-  @IsInt()
-  @Min(1)
-  userId!: number;
-
   @IsObject()
-  answers!: Record<string, number>;
+  answers!: Record<string, number | Record<string, string>>;
 }

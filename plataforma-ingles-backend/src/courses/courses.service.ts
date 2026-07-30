@@ -59,41 +59,32 @@ export class CoursesService {
 
   /**
    * Cursos del alumno según inscripción en Moodle.
-   * Si no hay token, devuelve el listado general (comportamiento anterior).
+   * Requiere token válido; no hace fallback al catálogo completo.
    */
-  async findAllForUser(userToken?: string): Promise<MoodleCourseSummary[]> {
-    if (userToken) {
-      const cacheKey = `moodle:courses:user:${userToken.slice(0, 16)}`;
-      const cached = await this.cache.get<MoodleCourseSummary[]>(cacheKey);
-      if (cached) return cached;
+  async findAllForUser(userToken: string, knownUserId?: number): Promise<MoodleCourseSummary[]> {
+    const userId = knownUserId ?? (await this.moodleService.getUserIdFromToken(userToken));
+    const cacheKey = `moodle:courses:user:${userId}`;
+    const cached = await this.cache.get<MoodleCourseSummary[]>(cacheKey);
+    if (cached) return cached;
 
-      try {
-        const userId = await this.moodleService.getUserIdFromToken(userToken);
-        const data = await this.moodleService.request<MoodleCourseRaw[]>(
-          'core_enrol_get_users_courses',
-          { userid: userId },
-          userToken,
-        );
-        const list = Array.isArray(data) ? data : [];
-        if (list.length > 0) {
-          const mapped = list
-            .filter((c) => c.id && c.id > 1)
-            .map((curso) => ({
-              id: curso.id,
-              name: curso.fullname || curso.displayname || '',
-              code: curso.shortname || '',
-              description: curso.summary
-                ? String(curso.summary).replace(/<[^>]*>/g, '')
-                : 'Sin descripción',
-            }));
-          await this.cache.set(cacheKey, mapped, CoursesService.COURSES_TTL_MS);
-          return mapped;
-        }
-      } catch {
-        // fallback al listado general si el token falla o no hay matrículas
-      }
-    }
-    return this.findAll();
+    const data = await this.moodleService.request<MoodleCourseRaw[]>(
+      'core_enrol_get_users_courses',
+      { userid: userId },
+      userToken,
+    );
+    const list = Array.isArray(data) ? data : [];
+    const mapped = list
+      .filter((c) => c.id && c.id > 1)
+      .map((curso) => ({
+        id: curso.id,
+        name: curso.fullname || curso.displayname || '',
+        code: curso.shortname || '',
+        description: curso.summary
+          ? String(curso.summary).replace(/<[^>]*>/g, '')
+          : 'Sin descripción',
+      }));
+    await this.cache.set(cacheKey, mapped, CoursesService.COURSES_TTL_MS);
+    return mapped;
   }
 
   private mapCourses(cursos: MoodleCourseRaw[]): MoodleCourseSummary[] {
@@ -109,14 +100,24 @@ export class CoursesService {
       }));
   }
 
-  async getCourseContents(courseId: number): Promise<CourseSectionView[]> {
-    const cacheKey = `moodle:contents:${courseId}`;
+  async getCourseContents(courseId: number, userToken?: string): Promise<CourseSectionView[]> {
+    let userKey = 'anon';
+    if (userToken) {
+      try {
+        const uid = await this.moodleService.getUserIdFromToken(userToken);
+        userKey = String(uid);
+      } catch {
+        userKey = 'tok';
+      }
+    }
+    const cacheKey = `moodle:contents:${courseId}:${userKey}`;
     const cached = await this.cache.get<CourseSectionView[]>(cacheKey);
     if (cached) return cached;
 
     const data = await this.moodleService.request<MoodleSectionRaw[]>(
       'core_course_get_contents',
       { courseid: courseId },
+      userToken,
     );
 
     if (!data || !Array.isArray(data)) {

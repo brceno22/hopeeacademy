@@ -19,17 +19,6 @@ interface Occurrence {
   googleUrl?: string;
 }
 
-interface TeacherShift {
-  id: number;
-  name: string;
-  folderName: string | null;
-}
-
-interface Enrollment {
-  id: number;
-  moodleUserId: number;
-}
-
 function monthBounds(year: number, month: number) {
   const from = `${year}-${String(month + 1).padStart(2, '0')}-01`;
   const last = new Date(year, month + 1, 0).getDate();
@@ -54,12 +43,6 @@ export const CalendarPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  const [teacherShifts, setTeacherShifts] = useState<TeacherShift[]>([]);
-  const [manageShiftId, setManageShiftId] = useState<number | null>(null);
-  const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
-  const [searchUser, setSearchUser] = useState('');
-  const [teacherMsg, setTeacherMsg] = useState('');
-
   const { from, to } = useMemo(() => monthBounds(year, month), [year, month]);
 
   const loadMonth = useCallback(async () => {
@@ -78,32 +61,6 @@ export const CalendarPage: React.FC = () => {
   useEffect(() => {
     void loadMonth();
   }, [loadMonth]);
-
-  useEffect(() => {
-    void (async () => {
-      try {
-        const { data } = await api.get<TeacherShift[]>('/calendar/teacher/shifts');
-        setTeacherShifts(data);
-        if (data.length) setManageShiftId(data[0].id);
-      } catch {
-        setTeacherShifts([]);
-      }
-    })();
-  }, []);
-
-  useEffect(() => {
-    if (!manageShiftId) return;
-    void (async () => {
-      try {
-        const { data } = await api.get<Enrollment[]>(
-          `/calendar/teacher/shifts/${manageShiftId}/enrollments`,
-        );
-        setEnrollments(data);
-      } catch {
-        setEnrollments([]);
-      }
-    })();
-  }, [manageShiftId]);
 
   const byDay = useMemo(() => {
     const map = new Map<string, Occurrence[]>();
@@ -147,7 +104,6 @@ export const CalendarPage: React.FC = () => {
   const exportIcs = () => {
     const token = localStorage.getItem('token');
     const url = `${API_BASE_URL}/calendar/me/ics?from=${from}&to=${to}`;
-    // fetch blob with auth
     void (async () => {
       try {
         const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
@@ -161,31 +117,6 @@ export const CalendarPage: React.FC = () => {
         setError('Could not download the .ics file');
       }
     })();
-  };
-
-  const teacherSearchAndEnroll = async () => {
-    if (!manageShiftId || !searchUser.trim()) return;
-    setTeacherMsg('');
-    try {
-      const q = searchUser.trim();
-      const params = q.includes('@') ? { email: q } : { username: q };
-      const userRes = await api.get('/users/buscar', { params });
-      await api.post(`/calendar/teacher/shifts/${manageShiftId}/enrollments`, {
-        moodleUserId: userRes.data.moodleUserId,
-      });
-      setTeacherMsg(`Assigned: ${userRes.data.fullname}`);
-      setSearchUser('');
-      const { data } = await api.get(`/calendar/teacher/shifts/${manageShiftId}/enrollments`);
-      setEnrollments(data);
-    } catch {
-      setTeacherMsg('Could not assign (user or permissions?)');
-    }
-  };
-
-  const teacherUnenroll = async (moodleUserId: number) => {
-    if (!manageShiftId) return;
-    await api.delete(`/calendar/teacher/shifts/${manageShiftId}/enrollments/${moodleUserId}`);
-    setEnrollments((prev) => prev.filter((e) => e.moodleUserId !== moodleUserId));
   };
 
   const monthTitle = new Date(year, month, 1).toLocaleDateString('en-US', {
@@ -285,44 +216,6 @@ export const CalendarPage: React.FC = () => {
             )}
           </aside>
         </div>
-      )}
-
-      {teacherShifts.length > 0 && (
-        <section className="calendar-teacher-panel">
-          <h2>Manage shifts (teacher)</h2>
-          <div className="calendar-teacher-row">
-            <select
-              value={manageShiftId ?? ''}
-              onChange={(e) => setManageShiftId(Number(e.target.value))}
-            >
-              {teacherShifts.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                  {s.folderName ? ` — ${s.folderName}` : ''}
-                </option>
-              ))}
-            </select>
-            <input
-              placeholder="username or email"
-              value={searchUser}
-              onChange={(e) => setSearchUser(e.target.value)}
-            />
-            <button type="button" className="btn-card primary" onClick={() => void teacherSearchAndEnroll()}>
-              Assign student
-            </button>
-          </div>
-          {teacherMsg && <p className="calendar-teacher-msg">{teacherMsg}</p>}
-          <ul className="calendar-event-list">
-            {enrollments.map((e) => (
-              <li key={e.id} className="calendar-enroll-row">
-                <span>User #{e.moodleUserId}</span>
-                <button type="button" className="btn-card secondary" onClick={() => void teacherUnenroll(e.moodleUserId)}>
-                  Remove
-                </button>
-              </li>
-            ))}
-          </ul>
-        </section>
       )}
     </div>
   );

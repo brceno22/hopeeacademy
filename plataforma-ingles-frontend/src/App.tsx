@@ -20,10 +20,10 @@ import { ClassDetailPage } from '@/pages/student/ClassDetailPage';
 import { CoursesListPage } from '@/pages/student/CoursesListPage';
 import { CourseViewPage } from '@/pages/student/CourseViewPage';
 import { ExamTakePage } from '@/pages/student/ExamTakePage';
+import { ExamsPage } from '@/pages/student/ExamsPage';
 import { ForumPage } from '@/pages/student/ForumPage';
 import { HomePage } from '@/pages/student/HomePage';
 import { MicrolearningPage } from '@/pages/student/MicrolearningPage';
-import { PlaceholderPage } from '@/pages/student/PlaceholderPage';
 import { ProfilePage } from '@/pages/student/ProfilePage';
 import { ProgramPage } from '@/pages/student/ProgramPage';
 import { ProgressView } from '@/pages/student/ProgressView';
@@ -59,16 +59,7 @@ function App() {
             <Route path="examenes/:examId/take" element={<ExamTakePage />} />
             <Route path="microlearning" element={<MicrolearningPage />} />
             <Route path="foro" element={<ForumPage />} />
-            <Route
-              path="examenes"
-              element={
-                <PlaceholderPage
-                  title="Exams"
-                  icon="📝"
-                  description="Soon you’ll see all your platform exams here. In the meantime, open the matching course from My program or My courses."
-                />
-              }
-            />
+            <Route path="examenes" element={<ExamsPage />} />
             <Route path="perfil" element={<ProfilePage />} />
           </Route>
 
