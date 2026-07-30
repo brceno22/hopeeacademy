@@ -472,6 +472,17 @@ export class MoodleService {
       );
     }
 
+    if (
+      code.includes('nopostforum') ||
+      code.includes('cannotreply') ||
+      code.includes('cannotaddpost') ||
+      message.toLowerCase().includes('not allowed to post')
+    ) {
+      throw new ForbiddenException(
+        'No tenés permiso para responder en este foro. En Moodle: el foro de Announcements (news) no admite replies de alumnos; en foros normales revisá mod/forum:replypost y el modo de grupos.',
+      );
+    }
+
     throw new BadGatewayException({
       message: `Error de Moodle: ${message}`,
       errorcode: payload.errorcode,

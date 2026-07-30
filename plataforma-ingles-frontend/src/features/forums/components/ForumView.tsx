@@ -22,6 +22,7 @@ interface ForumViewProps {
 
 export const ForumView: React.FC<ForumViewProps> = ({ forumId, courseId }) => {
   const [discussions, setDiscussions] = useState<Discussion[]>([]);
+  const [resolvedForumId, setResolvedForumId] = useState<number | null>(forumId ?? null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedDiscussionId, setSelectedDiscussionId] = useState<number | null>(null);
@@ -30,16 +31,31 @@ export const ForumView: React.FC<ForumViewProps> = ({ forumId, courseId }) => {
   const [newMessage, setNewMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const activeForumId = forumId ?? resolvedForumId;
+
   const fetchDiscussions = async () => {
     try {
       setLoading(true);
       const url = forumId ? `/forums/${forumId}/discussions` : `/forums/general-discussions/auto`;
       const response = await api.get(url);
+      const data = response.data;
 
-      if (response.data?.discussions) {
-        setDiscussions(response.data.discussions);
-      } else if (Array.isArray(response.data)) {
-        setDiscussions(response.data);
+      if (forumId) {
+        setResolvedForumId(forumId);
+        if (Array.isArray(data)) {
+          setDiscussions(data);
+        } else if (Array.isArray(data?.discussions)) {
+          setDiscussions(data.discussions);
+        } else {
+          setDiscussions([]);
+        }
+      } else if (data?.forumId) {
+        setResolvedForumId(Number(data.forumId));
+        setDiscussions(Array.isArray(data.discussions) ? data.discussions : []);
+      } else if (Array.isArray(data?.discussions)) {
+        setDiscussions(data.discussions);
+      } else if (Array.isArray(data)) {
+        setDiscussions(data);
       } else {
         setDiscussions([]);
       }
@@ -52,16 +68,18 @@ export const ForumView: React.FC<ForumViewProps> = ({ forumId, courseId }) => {
   };
 
   useEffect(() => {
+    setResolvedForumId(forumId ?? null);
     void fetchDiscussions();
     setSelectedDiscussionId(null);
+    setShowForm(false);
   }, [forumId, courseId]);
 
   const handleCreateTopic = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!forumId || !newSubject.trim() || !newMessage.trim()) return;
+    if (!activeForumId || !newSubject.trim() || !newMessage.trim()) return;
     try {
       setIsSubmitting(true);
-      await api.post(`/forums/${forumId}/discussions`, {
+      await api.post(`/forums/${activeForumId}/discussions`, {
         subject: newSubject,
         message: newMessage,
       });
@@ -116,7 +134,7 @@ export const ForumView: React.FC<ForumViewProps> = ({ forumId, courseId }) => {
     <div className="forum-container">
       <div className="forum-header">
         <h2>Forum topics</h2>
-        {forumId ? (
+        {activeForumId ? (
           <button
             type="button"
             className={`btn-card ${showForm ? 'secondary' : 'primary'}`}
@@ -128,7 +146,7 @@ export const ForumView: React.FC<ForumViewProps> = ({ forumId, courseId }) => {
         ) : null}
       </div>
 
-      {showForm && forumId && (
+      {showForm && activeForumId && (
         <form onSubmit={handleCreateTopic} className="widget-card">
           <input
             type="text"
@@ -162,8 +180,8 @@ export const ForumView: React.FC<ForumViewProps> = ({ forumId, courseId }) => {
           icon="💬"
           title="No topics yet"
           description="Be the first to start a conversation."
-          actionLabel={forumId ? 'Create topic' : undefined}
-          onAction={forumId ? () => setShowForm(true) : undefined}
+          actionLabel={activeForumId ? 'Create topic' : undefined}
+          onAction={activeForumId ? () => setShowForm(true) : undefined}
         />
       ) : (
         <div className="forum-thread-list">

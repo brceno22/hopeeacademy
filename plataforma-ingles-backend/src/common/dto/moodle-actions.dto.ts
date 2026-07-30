@@ -41,4 +41,9 @@ export class ReplyDiscussionDto {
   @IsString()
   @IsNotEmpty()
   message!: string;
+
+  /** Required by Moodle WS; defaults to "Re:" if omitted. */
+  @IsOptional()
+  @IsString()
+  subject?: string;
 }

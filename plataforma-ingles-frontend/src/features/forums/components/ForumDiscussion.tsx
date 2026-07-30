@@ -14,6 +14,8 @@ interface Post {
   author?: { fullname: string };
   created?: number;
   timecreated?: number;
+  /** Moodle capability flag when present */
+  canreply?: boolean | number;
 }
 
 interface ForumDiscussionProps {
@@ -49,19 +51,39 @@ export const ForumDiscussion: React.FC<ForumDiscussionProps> = ({
     void fetchPosts();
   }, [discussionId]);
 
+  const canReply =
+    posts.length > 0 &&
+    posts.some((p) => p.canreply === true || p.canreply === 1);
+
+  // If Moodle omits canreply, keep the form (server will enforce).
+  const replyAllowed =
+    posts.length === 0 || posts.every((p) => p.canreply === undefined)
+      ? true
+      : canReply;
+
   const handleReply = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!replyMessage.trim() || posts.length === 0) return;
+    if (!replyMessage.trim() || posts.length === 0 || !replyAllowed) return;
     try {
       setIsSubmitting(true);
-      const parentPostId = posts[0].id;
-      await api.post(`/forums/discussions/posts/${parentPostId}/reply`, {
+      const parentPost = posts[0];
+      const parentSubject = parentPost.subject?.trim();
+      const replySubject = parentSubject
+        ? parentSubject.toLowerCase().startsWith('re:')
+          ? parentSubject
+          : `Re: ${parentSubject}`
+        : 'Re:';
+      await api.post(`/forums/discussions/posts/${parentPost.id}/reply`, {
         message: replyMessage,
+        subject: replySubject.slice(0, 255),
       });
       setReplyMessage('');
       await fetchPosts();
-    } catch {
-      alert('Failed to send the reply. Please try again.');
+    } catch (err: unknown) {
+      const raw =
+        (err as { response?: { data?: { message?: string | string[] } } })?.response?.data
+          ?.message || 'Failed to send the reply. Please try again.';
+      alert(Array.isArray(raw) ? raw.join(', ') : String(raw));
     } finally {
       setIsSubmitting(false);
     }
@@ -143,25 +165,31 @@ export const ForumDiscussion: React.FC<ForumDiscussionProps> = ({
         })}
       </div>
 
-      <form onSubmit={handleReply} className="forum-reply-bar">
-        <input
-          type="text"
-          className="forum-input-box"
-          value={replyMessage}
-          onChange={(e) => setReplyMessage(e.target.value)}
-          placeholder="Write your reply here..."
-          disabled={isSubmitting}
-          style={{ margin: 0, border: 'none', boxShadow: 'none', background: 'var(--bg-color)' }}
-        />
-        <button
-          type="submit"
-          className="btn-card primary"
-          style={{ width: 'auto', padding: '12px 24px' }}
-          disabled={isSubmitting || !replyMessage.trim()}
-        >
-          {isSubmitting ? 'Sending...' : 'Reply'}
-        </button>
-      </form>
+      {replyAllowed ? (
+        <form onSubmit={handleReply} className="forum-reply-bar">
+          <input
+            type="text"
+            className="forum-input-box"
+            value={replyMessage}
+            onChange={(e) => setReplyMessage(e.target.value)}
+            placeholder="Write your reply here..."
+            disabled={isSubmitting}
+            style={{ margin: 0, border: 'none', boxShadow: 'none', background: 'var(--bg-color)' }}
+          />
+          <button
+            type="submit"
+            className="btn-card primary"
+            style={{ width: 'auto', padding: '12px 24px' }}
+            disabled={isSubmitting || !replyMessage.trim()}
+          >
+            {isSubmitting ? 'Sending...' : 'Reply'}
+          </button>
+        </form>
+      ) : (
+        <p className="forum-meta" style={{ margin: 0, padding: '12px 0' }}>
+          Replies are not allowed in this forum (Moodle permissions or announcements-only forum).
+        </p>
+      )}
     </div>
   );
 };
