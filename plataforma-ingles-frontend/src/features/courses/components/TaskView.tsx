@@ -1,16 +1,31 @@
-//TaskView.tsx
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { isAxiosError } from 'axios';
 import api from '@/core/api/axios';
 import { sanitizeHtml } from '@/core/utils/sanitize';
-import "@/features/forums/styles/widgets-forum.css";
+import '@/features/forums/styles/widgets-forum.css';
 
 interface TaskViewProps {
-  module: { name: string; description: string; instanceId?: number; };
+  module: { name: string; description: string; instanceId?: number };
+}
+
+interface TaskGrade {
+  grade?: string;
+  grader?: string;
+}
+
+interface TaskSubmission {
+  status?: string;
+}
+
+interface TaskStatus {
+  lastattempt?: { submission?: TaskSubmission };
+  feedback?: { grade?: TaskGrade };
 }
 
 export const TaskView: React.FC<TaskViewProps> = ({ module }) => {
-  const [status, setStatus] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const instanceId = module.instanceId;
+  const [status, setStatus] = useState<TaskStatus | null>(null);
+  const [statusFor, setStatusFor] = useState<number | undefined>(undefined);
   const [submitting, setSubmitting] = useState(false);
   const [text, setText] = useState('');
   const [file, setFile] = useState<File | null>(null);
@@ -18,27 +33,58 @@ export const TaskView: React.FC<TaskViewProps> = ({ module }) => {
   const [error, setError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    if (!module.instanceId) { setLoading(false); return; }
-    fetchStatus();
-  }, [module.instanceId]);
-
-  const fetchStatus = async () => {
-    setLoading(true);
+  const fetchStatus = useCallback(async () => {
+    if (!instanceId) return;
     try {
-      const res = await api.get(`/tasks/${module.instanceId}/status`);
+      const res = await api.get<TaskStatus>(`/tasks/${instanceId}/status`);
       setStatus(res.data);
-    } catch (err) { setError('Could not load assignment status.'); } 
-    finally { setLoading(false); }
-  };
+      setStatusFor(instanceId);
+      setError('');
+    } catch {
+      setError('Could not load assignment status.');
+      setStatusFor(instanceId);
+    }
+  }, [instanceId]);
+
+  useEffect(() => {
+    if (!instanceId) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await api.get<TaskStatus>(`/tasks/${instanceId}/status`);
+        if (cancelled) return;
+        setStatus(res.data);
+        setStatusFor(instanceId);
+        setError('');
+      } catch {
+        if (!cancelled) {
+          setError('Could not load assignment status.');
+          setStatusFor(instanceId);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [instanceId]);
+
+  const loading = Boolean(instanceId) && statusFor !== instanceId;
 
   const handleSubmit = async () => {
-    if (!text && !file) { setError('Write something or attach a file.'); return; }
-    setSubmitting(true); setError(''); setSuccess('');
+    if (!text && !file) {
+      setError('Write something or attach a file.');
+      return;
+    }
+    setSubmitting(true);
+    setError('');
+    setSuccess('');
     try {
-      let fileBase64, fileMimeType, fileName;
+      let fileBase64: string | undefined;
+      let fileMimeType: string | undefined;
+      let fileName: string | undefined;
       if (file) {
-        fileName = file.name; fileMimeType = file.type;
+        fileName = file.name;
+        fileMimeType = file.type;
         fileBase64 = await new Promise<string>((resolve, reject) => {
           const reader = new FileReader();
           reader.onload = () => resolve((reader.result as string).split(',')[1]);
@@ -46,13 +92,24 @@ export const TaskView: React.FC<TaskViewProps> = ({ module }) => {
           reader.readAsDataURL(file);
         });
       }
-      await api.post(`/tasks/${module.instanceId}/submit`, {
-        text, fileName, fileBase64, fileMimeType,
+      await api.post(`/tasks/${instanceId}/submit`, {
+        text,
+        fileName,
+        fileBase64,
+        fileMimeType,
       });
       setSuccess('Assignment submitted successfully! ✅');
-      await fetchStatus(); setText(''); setFile(null);
-    } catch (err: any) { setError(err.response?.data?.message || 'Failed to submit the assignment.'); } 
-    finally { setSubmitting(false); }
+      await fetchStatus();
+      setText('');
+      setFile(null);
+    } catch (err: unknown) {
+      const message = isAxiosError(err)
+        ? err.response?.data?.message
+        : 'Failed to submit the assignment.';
+      setError(typeof message === 'string' ? message : 'Failed to submit the assignment.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const getStatusInfo = () => {
@@ -61,82 +118,188 @@ export const TaskView: React.FC<TaskViewProps> = ({ module }) => {
     const grading = status.feedback?.grade;
 
     if (grading?.grade && parseFloat(grading.grade) >= 0) {
-      return { color: '#059669', bg: 'rgba(16, 185, 129, 0.1)', border: 'rgba(16, 185, 129, 0.2)', icon: '⭐', label: `Graded: ${parseFloat(grading.grade).toFixed(1)} / ${grading.grade}` };
+      return {
+        color: '#059669',
+        bg: 'rgba(16, 185, 129, 0.1)',
+        border: 'rgba(16, 185, 129, 0.2)',
+        icon: '⭐',
+        label: `Graded: ${parseFloat(grading.grade).toFixed(1)} / ${grading.grade}`,
+      };
     }
     if (submission?.status === 'submitted') {
-      return { color: 'var(--primary-color)', bg: 'rgba(0, 113, 188, 0.1)', border: 'rgba(0, 113, 188, 0.2)', icon: '✅', label: 'Submitted — awaiting grade' };
+      return {
+        color: 'var(--primary-color)',
+        bg: 'rgba(0, 113, 188, 0.1)',
+        border: 'rgba(0, 113, 188, 0.2)',
+        icon: '✅',
+        label: 'Submitted — awaiting grade',
+      };
     }
     if (submission?.status === 'draft') {
-      return { color: 'var(--secondary-color)', bg: 'rgba(255, 123, 0, 0.1)', border: 'rgba(255, 123, 0, 0.2)', icon: '📝', label: 'Draft saved' };
+      return {
+        color: 'var(--secondary-color)',
+        bg: 'rgba(255, 123, 0, 0.1)',
+        border: 'rgba(255, 123, 0, 0.2)',
+        icon: '📝',
+        label: 'Draft saved',
+      };
     }
-    return { color: 'var(--text-muted)', bg: 'var(--bg-surface)', border: 'var(--border-color)', icon: '⏳', label: 'Not submitted' };
+    return {
+      color: 'var(--text-muted)',
+      bg: 'var(--bg-surface)',
+      border: 'var(--border-color)',
+      icon: '⏳',
+      label: 'Not submitted',
+    };
   };
 
   const statusInfo = getStatusInfo();
 
-  if (loading) return <div className="page-description" style={{ padding: '40px', textAlign: 'center' }}>Loading assignment...</div>;
+  if (loading)
+    return (
+      <div className="page-description" style={{ padding: '40px', textAlign: 'center' }}>
+        Loading assignment...
+      </div>
+    );
 
   return (
     <div style={{ maxWidth: '800px', margin: '0 auto' }}>
-      
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '32px' }}>
-        <div style={{ background: 'rgba(0, 113, 188, 0.1)', color: 'var(--primary-color)', width: '80px', height: '80px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '36px', marginBottom: '16px' }}>
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          marginBottom: '32px',
+        }}
+      >
+        <div
+          style={{
+            background: 'rgba(0, 113, 188, 0.1)',
+            color: 'var(--primary-color)',
+            width: '80px',
+            height: '80px',
+            borderRadius: '50%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '36px',
+            marginBottom: '16px',
+          }}
+        >
           📝
         </div>
-        <h2 style={{ margin: 0, color: 'var(--primary-color)', fontFamily: 'var(--font-titles)', fontSize: '2rem', textAlign: 'center' }}>
+        <h2
+          style={{
+            margin: 0,
+            color: 'var(--primary-color)',
+            fontFamily: 'var(--font-titles)',
+            fontSize: '2rem',
+            textAlign: 'center',
+          }}
+        >
           {module.name}
         </h2>
       </div>
 
       {module.description && (
-        <div className="html-content-render widget-card" dangerouslySetInnerHTML={{ __html: sanitizeHtml(module.description) }} />
+        <div
+          className="html-content-render widget-card"
+          dangerouslySetInnerHTML={{ __html: sanitizeHtml(module.description) }}
+        />
       )}
 
       {statusInfo && (
-        <div className="status-badge" style={{ background: statusInfo.bg, border: `1px solid ${statusInfo.border}` }}>
+        <div
+          className="status-badge"
+          style={{ background: statusInfo.bg, border: `1px solid ${statusInfo.border}` }}
+        >
           <span style={{ fontSize: '28px' }}>{statusInfo.icon}</span>
           <div>
-            <p style={{ margin: 0, fontWeight: 'bold', color: statusInfo.color, fontSize: '1.1rem' }}>{statusInfo.label}</p>
+            <p style={{ margin: 0, fontWeight: 'bold', color: statusInfo.color, fontSize: '1.1rem' }}>
+              {statusInfo.label}
+            </p>
             {status?.feedback?.grade?.grader && (
-              <p style={{ margin: '4px 0 0 0', fontSize: '0.9rem', color: 'var(--text-muted)' }}>Graded by: {status.feedback.grade.grader}</p>
+              <p style={{ margin: '4px 0 0 0', fontSize: '0.9rem', color: 'var(--text-muted)' }}>
+                Graded by: {status.feedback.grade.grader}
+              </p>
             )}
           </div>
         </div>
       )}
 
-      {success && <div className="success-badge" style={{ width: '100%', marginBottom: '24px' }}>{success}</div>}
-      {error && <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#ef4444', padding: '16px', borderRadius: '12px', marginBottom: '24px', fontWeight: '600' }}>{error}</div>}
+      {success && (
+        <div className="success-badge" style={{ width: '100%', marginBottom: '24px' }}>
+          {success}
+        </div>
+      )}
+      {error && (
+        <div
+          style={{
+            background: '#fef2f2',
+            border: '1px solid #fecaca',
+            color: '#ef4444',
+            padding: '16px',
+            borderRadius: '12px',
+            marginBottom: '24px',
+            fontWeight: '600',
+          }}
+        >
+          {error}
+        </div>
+      )}
 
       <div className="widget-card">
         <h3 style={{ marginBottom: '24px' }}>📤 Submit assignment</h3>
 
-        <label style={{ display: 'block', fontWeight: '600', marginBottom: '8px', color: 'var(--text-main)' }}>Text response</label>
+        <label
+          style={{ display: 'block', fontWeight: '600', marginBottom: '8px', color: 'var(--text-main)' }}
+        >
+          Text response
+        </label>
         <textarea
           className="forum-input-box"
           value={text}
-          onChange={e => setText(e.target.value)}
+          onChange={(e) => setText(e.target.value)}
           placeholder="Write your response here..."
           rows={5}
           style={{ marginBottom: '24px', resize: 'vertical' }}
         />
 
-        <label style={{ display: 'block', fontWeight: '600', marginBottom: '8px', color: 'var(--text-main)' }}>Attach a file</label>
-        <div className={`task-upload-zone ${file ? 'has-file' : ''}`} onClick={() => fileInputRef.current?.click()}>
-          <input ref={fileInputRef} type="file" style={{ display: 'none' }} onChange={e => setFile(e.target.files?.[0] || null)} />
+        <label
+          style={{ display: 'block', fontWeight: '600', marginBottom: '8px', color: 'var(--text-main)' }}
+        >
+          Attach a file
+        </label>
+        <div
+          className={`task-upload-zone ${file ? 'has-file' : ''}`}
+          onClick={() => fileInputRef.current?.click()}
+        >
+          <input
+            ref={fileInputRef}
+            type="file"
+            style={{ display: 'none' }}
+            onChange={(e) => setFile(e.target.files?.[0] || null)}
+          />
           {file ? (
             <div>
-              <p style={{ margin: 0, fontWeight: 'bold', color: 'var(--primary-color)', fontSize: '1.1rem' }}>📎 {file.name}</p>
-              <p style={{ margin: '8px 0 0 0', fontSize: '0.9rem', color: 'var(--text-muted)' }}>{(file.size / 1024 / 1024).toFixed(2)} MB</p>
+              <p style={{ margin: 0, fontWeight: 'bold', color: 'var(--primary-color)', fontSize: '1.1rem' }}>
+                📎 {file.name}
+              </p>
+              <p style={{ margin: '8px 0 0 0', fontSize: '0.9rem', color: 'var(--text-muted)' }}>
+                {(file.size / 1024 / 1024).toFixed(2)} MB
+              </p>
             </div>
           ) : (
             <div>
               <p style={{ margin: 0, fontSize: '32px' }}>📁</p>
-              <p style={{ margin: '12px 0 0 0', color: 'var(--text-muted)', fontWeight: '500' }}>Click to select a file</p>
+              <p style={{ margin: '12px 0 0 0', color: 'var(--text-muted)', fontWeight: '500' }}>
+                Click to select a file
+              </p>
             </div>
           )}
         </div>
 
-        <button className="btn-card primary" onClick={handleSubmit} disabled={submitting}>
+        <button className="btn-card primary" onClick={() => void handleSubmit()} disabled={submitting}>
           {submitting ? 'Submitting...' : 'Submit assignment 📤'}
         </button>
       </div>

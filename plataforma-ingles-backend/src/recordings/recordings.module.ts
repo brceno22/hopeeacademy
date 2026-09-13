@@ -7,10 +7,7 @@ import { RecordingsController } from './recordings.controller';
 import { RecordingsService } from './recordings.service';
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([ClassRecording, CourseFolder]),
-    AuthModule,
-  ],
+  imports: [TypeOrmModule.forFeature([ClassRecording, CourseFolder]), AuthModule],
   controllers: [RecordingsController],
   providers: [RecordingsService],
 })

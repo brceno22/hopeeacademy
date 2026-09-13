@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useCoursesTree } from '@/core/hooks/useCoursesTree';
 import type { CourseFolderNode } from '@/core/types/courses-catalog';
 import '@/features/courses/styles/program-courses.css';
-import { useStudentLayout } from '@/layouts/StudentLayoutContext';
+import { useStudentLayout } from '@/layouts/useStudentLayout';
 
 function findNodeById(nodes: CourseFolderNode[], id: number): CourseFolderNode | null {
   for (const n of nodes) {

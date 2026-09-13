@@ -1,38 +1,15 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import type { CourseFolderNode } from '@/core/types/courses-catalog';
-
-export interface CatalogCourseItem {
-  moodleCourseId: number;
-  courseName: string;
-  folderPath: string;
-}
-
-/** Flatten Hopee folder tree into courses with folder path labels. */
-export function flattenCatalogCourses(
-  nodes: CourseFolderNode[],
-  parentPath: string[] = [],
-): CatalogCourseItem[] {
-  const out: CatalogCourseItem[] = [];
-  for (const node of nodes) {
-    const path = [...parentPath, node.name];
-    const folderPath = path.join(' / ');
-    for (const c of node.courses ?? []) {
-      out.push({
-        moodleCourseId: c.id,
-        courseName: c.name,
-        folderPath,
-      });
-    }
-    out.push(...flattenCatalogCourses(node.children ?? [], path));
-  }
-  return out;
-}
+import { type CatalogCourseItem } from './catalogCourses';
 
 interface CatalogCoursePickerProps {
   items: CatalogCourseItem[];
   valueId: number | string;
   onChange: (moodleCourseId: number) => void;
   placeholder?: string;
+}
+
+function labelFor(item: CatalogCourseItem): string {
+  return `${item.courseName} (${item.folderPath})`;
 }
 
 export const CatalogCoursePicker: React.FC<CatalogCoursePickerProps> = ({
@@ -43,20 +20,17 @@ export const CatalogCoursePicker: React.FC<CatalogCoursePickerProps> = ({
 }) => {
   const valueStr = valueId ? String(valueId) : '';
   const selected = items.find((c) => String(c.moodleCourseId) === valueStr);
-  const [query, setQuery] = useState(
-    selected ? `${selected.courseName} (${selected.folderPath})` : '',
-  );
+  const selectedLabel = selected ? labelFor(selected) : '';
+  const [query, setQuery] = useState(selectedLabel);
+  const [syncedValue, setSyncedValue] = useState(valueStr);
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const wrapRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (selected) {
-      setQuery(`${selected.courseName} (${selected.folderPath})`);
-    } else if (!valueStr || valueStr === '0') {
-      setQuery('');
-    }
-  }, [selected?.moodleCourseId, selected?.courseName, selected?.folderPath, valueStr]);
+  if (valueStr !== syncedValue) {
+    setSyncedValue(valueStr);
+    setQuery(!valueStr || valueStr === '0' ? '' : selectedLabel);
+  }
 
   useEffect(() => {
     const onDocClick = (e: MouseEvent) => {
@@ -81,7 +55,7 @@ export const CatalogCoursePicker: React.FC<CatalogCoursePickerProps> = ({
 
   const pick = (item: CatalogCourseItem) => {
     onChange(item.moodleCourseId);
-    setQuery(`${item.courseName} (${item.folderPath})`);
+    setQuery(labelFor(item));
     setOpen(false);
   };
 

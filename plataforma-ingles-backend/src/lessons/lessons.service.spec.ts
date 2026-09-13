@@ -9,7 +9,11 @@ describe('pickResourceFileUrl', () => {
   it('prefers PDF over other files', () => {
     const url = pickResourceFileUrl([
       { fileurl: 'https://m/pluginfile.php/1/a.docx', filename: 'a.docx' },
-      { fileurl: 'https://m/pluginfile.php/1/b.pdf', filename: 'b.pdf', mimetype: 'application/pdf' },
+      {
+        fileurl: 'https://m/pluginfile.php/1/b.pdf',
+        filename: 'b.pdf',
+        mimetype: 'application/pdf',
+      },
     ]);
     expect(url).toContain('b.pdf');
   });

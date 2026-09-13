@@ -21,10 +21,12 @@ export class AttendanceByShiftAndTeachers1741000000000 implements MigrationInter
       ON shift_teachers ("moodleUserId");
     `);
 
-    const shiftIdCol = await queryRunner.query(`
+    const shiftIdCol = (await queryRunner.query(
+      `
       SELECT 1 FROM information_schema.columns
       WHERE table_name = 'attendance_sessions' AND column_name = 'shiftId'
-    `);
+    `,
+    )) as unknown[];
 
     if (!shiftIdCol.length) {
       // Legacy schema: wipe incompatible rows, then reshape

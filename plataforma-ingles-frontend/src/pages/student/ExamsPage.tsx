@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import api from '@/core/api/axios';
 import { EmptyState } from '@/core/ui/EmptyState';
-import { useStudentLayout } from '@/layouts/StudentLayoutContext';
+import { useStudentLayout } from '@/layouts/useStudentLayout';
 import '@/core/ui/ui.css';
 import './exams-page.css';
 
@@ -81,14 +81,21 @@ export const ExamsPage: React.FC = () => {
 
   const [loadingRole, setLoadingRole] = useState(true);
   const [teacherShifts, setTeacherShifts] = useState<TeacherShift[]>([]);
-  const [selectedShiftId, setSelectedShiftId] = useState<number | null>(null);
+  const [selectedShiftIdState, setSelectedShiftId] = useState<number | null>(null);
   const [gradebook, setGradebook] = useState<Gradebook | null>(null);
-  const [gradesLoading, setGradesLoading] = useState(false);
+  const [gradebookFor, setGradebookFor] = useState<number | null>(null);
 
   const [exams, setExams] = useState<MyExam[]>([]);
   const [error, setError] = useState('');
 
   const isTeacher = teacherShifts.length > 0;
+  const fromQuery = shiftIdFromQuery ? Number(shiftIdFromQuery) : NaN;
+  const queryShiftId =
+    Number.isFinite(fromQuery) && teacherShifts.some((s) => s.id === fromQuery)
+      ? fromQuery
+      : null;
+  const selectedShiftId = queryShiftId ?? selectedShiftIdState;
+  const gradesLoading = isTeacher && selectedShiftId != null && gradebookFor !== selectedShiftId;
 
   useEffect(() => {
     setHeaderTitle('Exams');
@@ -142,31 +149,24 @@ export const ExamsPage: React.FC = () => {
   }, [loadTeacherShifts, loadStudentExams]);
 
   useEffect(() => {
-    const fromQuery = shiftIdFromQuery ? Number(shiftIdFromQuery) : NaN;
-    if (!Number.isFinite(fromQuery)) return;
-    if (teacherShifts.some((s) => s.id === fromQuery)) {
-      setSelectedShiftId(fromQuery);
-    }
-  }, [shiftIdFromQuery, teacherShifts]);
-
-  useEffect(() => {
     if (!isTeacher || selectedShiftId == null) return;
     let cancelled = false;
-    (async () => {
-      setGradesLoading(true);
-      setError('');
+    void (async () => {
       try {
         const { data } = await api.get<Gradebook>(
           `/exams/teacher/shifts/${selectedShiftId}/grades`,
         );
-        if (!cancelled) setGradebook(data);
+        if (!cancelled) {
+          setGradebook(data);
+          setGradebookFor(selectedShiftId);
+          setError('');
+        }
       } catch {
         if (!cancelled) {
           setGradebook(null);
+          setGradebookFor(selectedShiftId);
           setError('Could not load gradebook for this classroom.');
         }
-      } finally {
-        if (!cancelled) setGradesLoading(false);
       }
     })();
     return () => {

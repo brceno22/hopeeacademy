@@ -39,34 +39,22 @@ export class AttendanceController {
   }
 
   @Post('sessions')
-  async createSession(
-    @CurrentUser() user: MoodleUser,
-    @Body() body: CreateAttendanceSessionDto,
-  ) {
+  async createSession(@CurrentUser() user: MoodleUser, @Body() body: CreateAttendanceSessionDto) {
     return this.attendanceService.createOrGetSession(user.token, body);
   }
 
   @Patch('sessions/:id/open')
-  async openSession(
-    @CurrentUser() user: MoodleUser,
-    @Param('id', ParseIntPipe) id: number,
-  ) {
+  async openSession(@CurrentUser() user: MoodleUser, @Param('id', ParseIntPipe) id: number) {
     return this.attendanceService.openSession(user.token, id);
   }
 
   @Patch('sessions/:id/close')
-  async closeSession(
-    @CurrentUser() user: MoodleUser,
-    @Param('id', ParseIntPipe) id: number,
-  ) {
+  async closeSession(@CurrentUser() user: MoodleUser, @Param('id', ParseIntPipe) id: number) {
     return this.attendanceService.closeSession(user.token, id);
   }
 
   @Get('sessions/:id')
-  async getRoster(
-    @CurrentUser() user: MoodleUser,
-    @Param('id', ParseIntPipe) id: number,
-  ) {
+  async getRoster(@CurrentUser() user: MoodleUser, @Param('id', ParseIntPipe) id: number) {
     return this.attendanceService.getSessionRoster(user.token, id);
   }
 

@@ -1,10 +1,8 @@
 import React, { useRef, useState } from 'react';
 import api from '@/core/api/axios';
-import { useAuth } from '@/core/context/AuthContext';
 import '@/pages/admin/admin.css';
 
 export const AdminMicrolearning: React.FC = () => {
-  const { adminKey } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [content, setContent] = useState({
@@ -20,17 +18,13 @@ export const AdminMicrolearning: React.FC = () => {
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
 
-  const adminHeaders = () => ({
-    'x-admin-key': adminKey || '',
-  });
-
   const handleManualSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSuccess('');
     setError('');
     setSaving(true);
     try {
-      await api.post('/microlearning/admin/create', content, { headers: adminHeaders() });
+      await api.post('/microlearning/admin/create', content);
       setSuccess('Pill saved successfully');
       setContent({
         title: '',
@@ -63,7 +57,7 @@ export const AdminMicrolearning: React.FC = () => {
         throw new Error('JSON must be an array of pills');
       }
 
-      await api.post('/microlearning/admin/bulk', data, { headers: adminHeaders() });
+      await api.post('/microlearning/admin/bulk', data);
       setSuccess(`Bulk upload successful: ${data.length} pill(s) imported`);
       setSelectedFile(null);
       if (fileInputRef.current) fileInputRef.current.value = '';

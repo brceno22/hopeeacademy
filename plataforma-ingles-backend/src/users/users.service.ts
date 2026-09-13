@@ -12,10 +12,7 @@ import { AxiosError } from 'axios';
 import { firstValueFrom } from 'rxjs';
 import { Repository } from 'typeorm';
 import { MoodleService } from 'src/moodle/moodle.service';
-import {
-  DEFAULT_AVATAR_COLOR,
-  UserProfilePrefs,
-} from './user-profile-prefs.entity';
+import { DEFAULT_AVATAR_COLOR, UserProfilePrefs } from './user-profile-prefs.entity';
 
 export interface UserProfile {
   id: number;
@@ -76,9 +73,7 @@ export class UsersService {
     const firstname = (usuarioRaw.firstname as string) || '';
     const lastname = (usuarioRaw.lastname as string) || '';
     const avatar = this.normalizeAvatar(
-      (usuarioRaw.profileimageurl as string) ||
-        (usuarioRaw.profileimageurlsmall as string) ||
-        null,
+      (usuarioRaw.profileimageurl as string) || (usuarioRaw.profileimageurlsmall as string) || null,
     );
 
     return {
@@ -103,17 +98,13 @@ export class UsersService {
       'values[0]': value,
     });
 
-    const users = Array.isArray(data)
-      ? data
-      : Array.isArray(data?.users)
-        ? data.users
-        : [];
+    const users = Array.isArray(data) ? data : Array.isArray(data?.users) ? data.users : [];
 
     if (users.length === 0) {
       throw new NotFoundException(`User not found for ${field}: ${value}`);
     }
 
-    const raw = users[0] as Record<string, unknown>;
+    const raw = users[0];
     const id = raw.id as number;
     const avatarColor = await this.getAvatarColor(id);
     return this.mapUser(raw, avatarColor);
@@ -255,7 +246,7 @@ export class UsersService {
     }
 
     const me = await this.getMe(userToken);
-    const safeName = (file.originalname || 'avatar.jpg').replace(/[^\w.\-]+/g, '_');
+    const safeName = (file.originalname || 'avatar.jpg').replace(/[^\w.-]+/g, '_');
     const filecontent = file.buffer.toString('base64');
 
     const uploadData = await this.moodleService.requestPostForm<MoodleUploadResult>(

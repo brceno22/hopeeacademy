@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { useAuth } from '@/core/context/AuthContext';
+import { useAuth } from '@/core/context/auth';
 import '@/pages/admin/admin.css';
 
 const NAV = [
@@ -18,7 +18,8 @@ export const AdminLayout: React.FC = () => {
   const [collapsed, setCollapsed] = useState(false);
 
   const handleLogout = () => {
-    logoutAdmin();
+    // logoutAdmin no rechaza: limpia el estado local igual si el backend falla.
+    void logoutAdmin();
     navigate('/admin');
   };
 

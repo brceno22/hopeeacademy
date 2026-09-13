@@ -1,71 +1,26 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '@/core/api/axios';
-import { useAuth } from '@/core/context/AuthContext';
+import { useAuth } from '@/core/context/auth';
 import type { CourseFolderNode } from '@/core/types/courses-catalog';
+import {
+  SEARCH_DEBOUNCE_MS,
+  flatFolders,
+  type CalEvent,
+  type Enrollment,
+  type EventFormState,
+  type Shift,
+  type ShiftFormState,
+  type UserSuggestion,
+} from './calendarAdminTypes';
+import { ShiftEventsPanel } from './ShiftEventsPanel';
+import { ShiftForm } from './ShiftForm';
+import { ShiftRosterPanel } from './ShiftRosterPanel';
 import './admin.css';
-
-const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-const SEARCH_DEBOUNCE_MS = 300;
-
-interface Shift {
-  id: number;
-  name: string;
-  folderId: number;
-  folderName: string | null;
-  moodleCourseId: number | null;
-  daysOfWeek: number[];
-  startTime: string;
-  endTime: string;
-  title: string;
-  description: string | null;
-  meetUrl: string | null;
-  validFrom: string | null;
-  validTo: string | null;
-  isActive: boolean;
-}
-
-interface Enrollment {
-  id: number;
-  shiftId: number;
-  moodleUserId: number;
-  fullName?: string;
-  email?: string | null;
-  username?: string | null;
-}
-
-interface UserSuggestion {
-  moodleUserId: number;
-  fullname: string;
-  email: string;
-  username: string;
-}
-
-interface CalEvent {
-  id: number;
-  title: string;
-  description: string | null;
-  meetUrl: string | null;
-  startsAt: string;
-  endsAt: string;
-  shiftId: number;
-  shiftName: string | null;
-  isActive: boolean;
-}
-
-function flatFolders(nodes: CourseFolderNode[], depth = 0): { node: CourseFolderNode; depth: number }[] {
-  const out: { node: CourseFolderNode; depth: number }[] = [];
-  for (const n of nodes) {
-    out.push({ node: n, depth });
-    out.push(...flatFolders(n.children ?? [], depth + 1));
-  }
-  return out;
-}
 
 export const AdminCalendar: React.FC = () => {
   const navigate = useNavigate();
-  const { adminKey } = useAuth();
-  const headers = { 'x-admin-key': adminKey || '' };
+  const { isAdmin } = useAuth();
 
   const [tab, setTab] = useState<'shifts' | 'enroll' | 'teachers' | 'events'>('shifts');
   const [error, setError] = useState('');
@@ -76,11 +31,11 @@ export const AdminCalendar: React.FC = () => {
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [events, setEvents] = useState<CalEvent[]>([]);
 
-  const [shiftForm, setShiftForm] = useState({
+  const [shiftForm, setShiftForm] = useState<ShiftFormState>({
     name: '',
     folderId: '',
     moodleCourseId: '',
-    daysOfWeek: [1, 2, 3, 4] as number[],
+    daysOfWeek: [1, 2, 3, 4],
     startTime: '18:00',
     endTime: '20:00',
     title: 'Hopee class — Meet',
@@ -95,16 +50,16 @@ export const AdminCalendar: React.FC = () => {
   const [teachers, setTeachers] = useState<Enrollment[]>([]);
   const [searchUser, setSearchUser] = useState('');
   const [studentSuggestions, setStudentSuggestions] = useState<UserSuggestion[]>([]);
+  const [studentResultsFor, setStudentResultsFor] = useState('');
   const [studentSearchOpen, setStudentSearchOpen] = useState(false);
-  const [studentSearching, setStudentSearching] = useState(false);
   const [teacherSearchUser, setTeacherSearchUser] = useState('');
   const [teacherSuggestions, setTeacherSuggestions] = useState<UserSuggestion[]>([]);
+  const [teacherResultsFor, setTeacherResultsFor] = useState('');
   const [teacherSearchOpen, setTeacherSearchOpen] = useState(false);
-  const [teacherSearching, setTeacherSearching] = useState(false);
   const studentSearchRef = useRef<HTMLDivElement>(null);
   const teacherSearchRef = useRef<HTMLDivElement>(null);
 
-  const [eventForm, setEventForm] = useState({
+  const [eventForm, setEventForm] = useState<EventFormState>({
     shiftId: '',
     title: '',
     meetUrl: '',
@@ -114,14 +69,21 @@ export const AdminCalendar: React.FC = () => {
 
   const allFlat = useMemo(() => flatFolders(folders), [folders]);
 
+  const studentQ = searchUser.trim();
+  const studentSearching = isAdmin && studentQ.length >= 2 && studentResultsFor !== studentQ;
+  const visibleStudentSuggestions = studentResultsFor === studentQ ? studentSuggestions : [];
+  const teacherQ = teacherSearchUser.trim();
+  const teacherSearching = isAdmin && teacherQ.length >= 2 && teacherResultsFor !== teacherQ;
+  const visibleTeacherSuggestions = teacherResultsFor === teacherQ ? teacherSuggestions : [];
+
   const load = async () => {
     setLoading(true);
     setError('');
     try {
       const [treeRes, shiftsRes, eventsRes] = await Promise.all([
-        api.get('/courses/admin/tree', { headers }),
-        api.get('/calendar/admin/shifts', { headers }),
-        api.get('/calendar/admin/events', { headers }),
+        api.get('/courses/admin/tree'),
+        api.get('/calendar/admin/shifts'),
+        api.get('/calendar/admin/events'),
       ]);
       setFolders(treeRes.data);
       setShifts(shiftsRes.data);
@@ -137,18 +99,44 @@ export const AdminCalendar: React.FC = () => {
   };
 
   useEffect(() => {
-    if (!adminKey) navigate('/admin');
-    else void load();
+    if (!isAdmin) {
+      navigate('/admin');
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const [treeRes, shiftsRes, eventsRes] = await Promise.all([
+          api.get('/courses/admin/tree'),
+          api.get('/calendar/admin/shifts'),
+          api.get('/calendar/admin/events'),
+        ]);
+        if (cancelled) return;
+        setFolders(treeRes.data);
+        setShifts(shiftsRes.data);
+        setEvents(eventsRes.data);
+        if (!selectedShiftId && shiftsRes.data.length) {
+          setSelectedShiftId(shiftsRes.data[0].id);
+        }
+      } catch {
+        if (!cancelled) setError('Failed to load calendar');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [adminKey]);
+  }, [isAdmin, navigate]);
 
   useEffect(() => {
-    if (!selectedShiftId || !adminKey) return;
+    if (!selectedShiftId || !isAdmin) return;
     void (async () => {
       try {
         const [enrollRes, teacherRes] = await Promise.all([
-          api.get(`/calendar/admin/shifts/${selectedShiftId}/enrollments`, { headers }),
-          api.get(`/calendar/admin/shifts/${selectedShiftId}/teachers`, { headers }),
+          api.get(`/calendar/admin/shifts/${selectedShiftId}/enrollments`),
+          api.get(`/calendar/admin/shifts/${selectedShiftId}/teachers`),
         ]);
         setEnrollments(enrollRes.data);
         setTeachers(teacherRes.data);
@@ -157,7 +145,7 @@ export const AdminCalendar: React.FC = () => {
         setTeachers([]);
       }
     })();
-  }, [selectedShiftId, adminKey]);
+  }, [selectedShiftId, isAdmin]);
 
   useEffect(() => {
     const onDocClick = (e: MouseEvent) => {
@@ -174,28 +162,27 @@ export const AdminCalendar: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (!adminKey || searchUser.trim().length < 2) {
-      setStudentSuggestions([]);
-      setStudentSearching(false);
+    if (!isAdmin || searchUser.trim().length < 2) {
       return;
     }
     let cancelled = false;
-    setStudentSearching(true);
+    const q = searchUser.trim();
     const timer = window.setTimeout(() => {
       void (async () => {
         try {
           const res = await api.get<UserSuggestion[]>('/users/search', {
-            params: { q: searchUser.trim() },
-            headers,
+            params: { q },
           });
           if (!cancelled) {
             setStudentSuggestions(res.data);
+            setStudentResultsFor(q);
             setStudentSearchOpen(true);
           }
         } catch {
-          if (!cancelled) setStudentSuggestions([]);
-        } finally {
-          if (!cancelled) setStudentSearching(false);
+          if (!cancelled) {
+            setStudentSuggestions([]);
+            setStudentResultsFor(q);
+          }
         }
       })();
     }, SEARCH_DEBOUNCE_MS);
@@ -203,31 +190,30 @@ export const AdminCalendar: React.FC = () => {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [searchUser, adminKey]);
+  }, [searchUser, isAdmin]);
 
   useEffect(() => {
-    if (!adminKey || teacherSearchUser.trim().length < 2) {
-      setTeacherSuggestions([]);
-      setTeacherSearching(false);
+    if (!isAdmin || teacherSearchUser.trim().length < 2) {
       return;
     }
     let cancelled = false;
-    setTeacherSearching(true);
+    const q = teacherSearchUser.trim();
     const timer = window.setTimeout(() => {
       void (async () => {
         try {
           const res = await api.get<UserSuggestion[]>('/users/search', {
-            params: { q: teacherSearchUser.trim() },
-            headers,
+            params: { q },
           });
           if (!cancelled) {
             setTeacherSuggestions(res.data);
+            setTeacherResultsFor(q);
             setTeacherSearchOpen(true);
           }
         } catch {
-          if (!cancelled) setTeacherSuggestions([]);
-        } finally {
-          if (!cancelled) setTeacherSearching(false);
+          if (!cancelled) {
+            setTeacherSuggestions([]);
+            setTeacherResultsFor(q);
+          }
         }
       })();
     }, SEARCH_DEBOUNCE_MS);
@@ -235,7 +221,7 @@ export const AdminCalendar: React.FC = () => {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [teacherSearchUser, adminKey]);
+  }, [teacherSearchUser, isAdmin]);
 
   const toggleDay = (d: number) => {
     setShiftForm((prev) => ({
@@ -256,25 +242,19 @@ export const AdminCalendar: React.FC = () => {
       return;
     }
     try {
-      await api.post(
-        '/calendar/admin/shifts',
-        {
-          name: shiftForm.name,
-          folderId: Number(shiftForm.folderId),
-          moodleCourseId: shiftForm.moodleCourseId
-            ? Number(shiftForm.moodleCourseId)
-            : null,
-          daysOfWeek: shiftForm.daysOfWeek,
-          startTime: shiftForm.startTime,
-          endTime: shiftForm.endTime,
-          title: shiftForm.title,
-          description: shiftForm.description || undefined,
-          meetUrl: shiftForm.meetUrl || undefined,
-          validFrom: shiftForm.validFrom || undefined,
-          validTo: shiftForm.validTo || undefined,
-        },
-        { headers },
-      );
+      await api.post('/calendar/admin/shifts', {
+        name: shiftForm.name,
+        folderId: Number(shiftForm.folderId),
+        moodleCourseId: shiftForm.moodleCourseId ? Number(shiftForm.moodleCourseId) : null,
+        daysOfWeek: shiftForm.daysOfWeek,
+        startTime: shiftForm.startTime,
+        endTime: shiftForm.endTime,
+        title: shiftForm.title,
+        description: shiftForm.description || undefined,
+        meetUrl: shiftForm.meetUrl || undefined,
+        validFrom: shiftForm.validFrom || undefined,
+        validTo: shiftForm.validTo || undefined,
+      });
       setSuccess('Shift created');
       setShiftForm((f) => ({ ...f, name: '', validFrom: '', validTo: '' }));
       await load();
@@ -286,7 +266,7 @@ export const AdminCalendar: React.FC = () => {
   const deleteShift = async (id: number) => {
     if (!confirm('Delete shift and its enrollments/events?')) return;
     try {
-      await api.delete(`/calendar/admin/shifts/${id}`, { headers });
+      await api.delete(`/calendar/admin/shifts/${id}`);
       setSuccess('Shift deleted');
       if (selectedShiftId === id) setSelectedShiftId(null);
       await load();
@@ -299,18 +279,14 @@ export const AdminCalendar: React.FC = () => {
     if (!selectedShiftId) return;
     setError('');
     try {
-      await api.post(
-        `/calendar/admin/shifts/${selectedShiftId}/enrollments`,
-        { moodleUserId: user.moodleUserId },
-        { headers },
-      );
+      await api.post(`/calendar/admin/shifts/${selectedShiftId}/enrollments`, {
+        moodleUserId: user.moodleUserId,
+      });
       setSuccess(`Assigned: ${user.fullname}`);
       setSearchUser('');
       setStudentSuggestions([]);
       setStudentSearchOpen(false);
-      const res = await api.get(`/calendar/admin/shifts/${selectedShiftId}/enrollments`, {
-        headers,
-      });
+      const res = await api.get(`/calendar/admin/shifts/${selectedShiftId}/enrollments`);
       setEnrollments(res.data);
     } catch (err: unknown) {
       const message =
@@ -323,10 +299,7 @@ export const AdminCalendar: React.FC = () => {
   const unenroll = async (moodleUserId: number) => {
     if (!selectedShiftId) return;
     try {
-      await api.delete(
-        `/calendar/admin/shifts/${selectedShiftId}/enrollments/${moodleUserId}`,
-        { headers },
-      );
+      await api.delete(`/calendar/admin/shifts/${selectedShiftId}/enrollments/${moodleUserId}`);
       setEnrollments((prev) => prev.filter((e) => e.moodleUserId !== moodleUserId));
       setSuccess('Student removed');
     } catch {
@@ -338,18 +311,14 @@ export const AdminCalendar: React.FC = () => {
     if (!selectedShiftId) return;
     setError('');
     try {
-      await api.post(
-        `/calendar/admin/shifts/${selectedShiftId}/teachers`,
-        { moodleUserId: user.moodleUserId },
-        { headers },
-      );
+      await api.post(`/calendar/admin/shifts/${selectedShiftId}/teachers`, {
+        moodleUserId: user.moodleUserId,
+      });
       setSuccess(`Teacher assigned: ${user.fullname}`);
       setTeacherSearchUser('');
       setTeacherSuggestions([]);
       setTeacherSearchOpen(false);
-      const res = await api.get(`/calendar/admin/shifts/${selectedShiftId}/teachers`, {
-        headers,
-      });
+      const res = await api.get(`/calendar/admin/shifts/${selectedShiftId}/teachers`);
       setTeachers(res.data);
     } catch (err: unknown) {
       const message =
@@ -362,9 +331,7 @@ export const AdminCalendar: React.FC = () => {
   const unassignTeacher = async (moodleUserId: number) => {
     if (!selectedShiftId) return;
     try {
-      await api.delete(`/calendar/admin/shifts/${selectedShiftId}/teachers/${moodleUserId}`, {
-        headers,
-      });
+      await api.delete(`/calendar/admin/shifts/${selectedShiftId}/teachers/${moodleUserId}`);
       setTeachers((prev) => prev.filter((t) => t.moodleUserId !== moodleUserId));
       setSuccess('Teacher removed');
     } catch {
@@ -378,17 +345,13 @@ export const AdminCalendar: React.FC = () => {
       return;
     }
     try {
-      await api.post(
-        '/calendar/admin/events',
-        {
-          shiftId: Number(eventForm.shiftId),
-          title: eventForm.title,
-          meetUrl: eventForm.meetUrl || undefined,
-          startsAt: new Date(eventForm.startsAt).toISOString(),
-          endsAt: new Date(eventForm.endsAt).toISOString(),
-        },
-        { headers },
-      );
+      await api.post('/calendar/admin/events', {
+        shiftId: Number(eventForm.shiftId),
+        title: eventForm.title,
+        meetUrl: eventForm.meetUrl || undefined,
+        startsAt: new Date(eventForm.startsAt).toISOString(),
+        endsAt: new Date(eventForm.endsAt).toISOString(),
+      });
       setSuccess('Event created');
       setEventForm({ shiftId: eventForm.shiftId, title: '', meetUrl: '', startsAt: '', endsAt: '' });
       await load();
@@ -400,7 +363,7 @@ export const AdminCalendar: React.FC = () => {
   const deleteEvent = async (id: number) => {
     if (!confirm('Delete event?')) return;
     try {
-      await api.delete(`/calendar/admin/events/${id}`, { headers });
+      await api.delete(`/calendar/admin/events/${id}`);
       setSuccess('Event deleted');
       await load();
     } catch {
@@ -419,385 +382,85 @@ export const AdminCalendar: React.FC = () => {
       {error && <div className="admin-alert err">{error}</div>}
 
       <div className="admin-nav" style={{ marginBottom: 16 }}>
-          {(
-            [
-              ['shifts', 'Classrooms'],
-              ['enroll', 'Students'],
-              ['teachers', 'Teachers'],
-              ['events', 'One-off events'],
-            ] as const
-          ).map(([key, label]) => (
-            <button
-              key={key}
-              type="button"
-              className={`admin-btn ${tab === key ? 'primary' : 'muted'}`}
-              onClick={() => setTab(key)}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+        {(
+          [
+            ['shifts', 'Classrooms'],
+            ['enroll', 'Students'],
+            ['teachers', 'Teachers'],
+            ['events', 'One-off events'],
+          ] as const
+        ).map(([key, label]) => (
+          <button
+            key={key}
+            type="button"
+            className={`admin-btn ${tab === key ? 'primary' : 'muted'}`}
+            onClick={() => setTab(key)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
 
-        {loading ? (
-          <p className="page-description">Loading…</p>
-        ) : tab === 'shifts' ? (
-          <>
-            <div className="admin-card">
-              <h3>New shift</h3>
-              <p className="page-description" style={{ marginTop: 0 }}>
-                E.g.: Mon–Thu 18:00–20:00 for a program/folder. Zone: America/Guayaquil.
-              </p>
-              <div className="admin-form-row" style={{ marginBottom: 10 }}>
-                <input
-                  className="admin-input"
-                  placeholder="Name (B1 Evening)"
-                  value={shiftForm.name}
-                  onChange={(e) => setShiftForm({ ...shiftForm, name: e.target.value })}
-                />
-                <select
-                  className="admin-select"
-                  value={shiftForm.folderId}
-                  onChange={(e) => setShiftForm({ ...shiftForm, folderId: e.target.value })}
-                >
-                  <option value="">Folder / program</option>
-                  {allFlat.map(({ node, depth }) => (
-                    <option key={node.id} value={node.id}>
-                      {'—'.repeat(depth)} {node.name}
-                    </option>
-                  ))}
-                </select>
-                <input
-                  className="admin-input"
-                  placeholder="Moodle courseId (Meetings, optional)"
-                  value={shiftForm.moodleCourseId}
-                  onChange={(e) => setShiftForm({ ...shiftForm, moodleCourseId: e.target.value })}
-                />
-              </div>
-              <div className="admin-form-row" style={{ marginBottom: 10 }}>
-                {DAY_LABELS.map((label, i) => (
-                  <label key={label} style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                    <input
-                      type="checkbox"
-                      checked={shiftForm.daysOfWeek.includes(i)}
-                      onChange={() => toggleDay(i)}
-                    />
-                    {label}
-                  </label>
-                ))}
-              </div>
-              <div className="admin-form-row" style={{ marginBottom: 10 }}>
-                <input
-                  type="time"
-                  className="admin-input"
-                  value={shiftForm.startTime}
-                  onChange={(e) => setShiftForm({ ...shiftForm, startTime: e.target.value })}
-                />
-                <input
-                  type="time"
-                  className="admin-input"
-                  value={shiftForm.endTime}
-                  onChange={(e) => setShiftForm({ ...shiftForm, endTime: e.target.value })}
-                />
-                <input
-                  className="admin-input"
-                  style={{ flex: 1 }}
-                  placeholder="Event title"
-                  value={shiftForm.title}
-                  onChange={(e) => setShiftForm({ ...shiftForm, title: e.target.value })}
-                />
-              </div>
-              <div className="admin-form-row" style={{ marginBottom: 10, alignItems: 'center' }}>
-                <label className="page-description" style={{ margin: 0, whiteSpace: 'nowrap' }}>
-                  From
-                </label>
-                <input
-                  type="date"
-                  className="admin-input"
-                  value={shiftForm.validFrom}
-                  onChange={(e) => setShiftForm({ ...shiftForm, validFrom: e.target.value })}
-                />
-                <label className="page-description" style={{ margin: 0, whiteSpace: 'nowrap' }}>
-                  To
-                </label>
-                <input
-                  type="date"
-                  className="admin-input"
-                  value={shiftForm.validTo}
-                  onChange={(e) => setShiftForm({ ...shiftForm, validTo: e.target.value })}
-                />
-                <span className="page-description" style={{ margin: 0 }}>
-                  Optional. Leave empty for no end (repeats indefinitely).
-                </span>
-              </div>
-              <div className="admin-form-row">
-                <input
-                  className="admin-input"
-                  style={{ flex: 1 }}
-                  placeholder="Meet / class URL"
-                  value={shiftForm.meetUrl}
-                  onChange={(e) => setShiftForm({ ...shiftForm, meetUrl: e.target.value })}
-                />
-                <button type="button" className="admin-btn primary" onClick={() => void createShift()}>
-                  Create shift
-                </button>
-              </div>
-            </div>
-
-            <div className="admin-card">
-              <h3>Existing shifts</h3>
-              {shifts.length === 0 ? (
-                <p className="page-description">No shifts yet.</p>
-              ) : (
-                <ul className="admin-course-list">
-                  {shifts.map((s) => (
-                    <li key={s.id}>
-                      <div style={{ flex: 1 }}>
-                        <strong>{s.name}</strong>
-                        <span className="admin-folder-meta">
-                          {s.folderName} · {s.daysOfWeek.map((d) => DAY_LABELS[d]).join(', ')} ·{' '}
-                          {s.startTime}–{s.endTime}
-                          {s.validFrom || s.validTo
-                            ? ` · ${s.validFrom ?? '…'} → ${s.validTo ?? 'ongoing'}`
-                            : ' · no date limit'}
-                          {!s.isActive ? ' · inactive' : ''}
-                        </span>
-                      </div>
-                      <button type="button" className="admin-btn danger" onClick={() => void deleteShift(s.id)}>
-                        Delete
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </>
-        ) : tab === 'enroll' ? (
-          <div className="admin-card">
-            <h3>Assign students to a classroom</h3>
-            <p className="page-description" style={{ marginTop: 0 }}>
-              Assigning a student also enrols them in Moodle on every class (course) linked to this
-              classroom&apos;s program folder and its subfolders.
-            </p>
-            <select
-              className="admin-select"
-              value={selectedShiftId ?? ''}
-              onChange={(e) => setSelectedShiftId(Number(e.target.value))}
-              style={{ marginBottom: 12 }}
-            >
-              <option value="">Select shift</option>
-              {shifts.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-            <div className="admin-autocomplete" ref={studentSearchRef} style={{ marginBottom: 12 }}>
-              <input
-                className="admin-input"
-                placeholder="Type a name, username or email…"
-                value={searchUser}
-                onChange={(e) => setSearchUser(e.target.value)}
-                onFocus={() => {
-                  if (studentSuggestions.length) setStudentSearchOpen(true);
-                }}
-                style={{ width: '100%' }}
-                disabled={!selectedShiftId}
-              />
-              {studentSearchOpen && searchUser.trim().length >= 2 && (
-                <ul className="admin-autocomplete__list" role="listbox">
-                  {studentSearching && (
-                    <li className="admin-autocomplete__empty">Searching…</li>
-                  )}
-                  {!studentSearching && studentSuggestions.length === 0 && (
-                    <li className="admin-autocomplete__empty">No users found</li>
-                  )}
-                  {!studentSearching &&
-                    studentSuggestions.map((u) => (
-                      <li key={u.moodleUserId}>
-                        <button
-                          type="button"
-                          className="admin-autocomplete__item"
-                          onClick={() => void enrollUser(u)}
-                        >
-                          <strong>{u.fullname}</strong>
-                          <span>
-                            {u.username}
-                            {u.email ? ` · ${u.email}` : ''}
-                          </span>
-                        </button>
-                      </li>
-                    ))}
-                </ul>
-              )}
-            </div>
-            <ul className="admin-course-list">
-              {enrollments.map((e) => (
-                <li key={e.id}>
-                  <div style={{ flex: 1 }}>
-                    <strong>{e.fullName || `User #${e.moodleUserId}`}</strong>
-                    <span className="admin-folder-meta">
-                      {e.email || e.username || `id ${e.moodleUserId}`}
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    className="admin-btn ghost"
-                    onClick={() => void unenroll(e.moodleUserId)}
-                  >
-                    remove
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : tab === 'teachers' ? (
-          <div className="admin-card">
-            <h3>Assign teachers to a classroom</h3>
-            <p className="page-description" style={{ marginTop: 0 }}>
-              Assigning a teacher also enrols them as teacher in Moodle on every class linked to this
-              classroom&apos;s program folder and its subfolders.
-            </p>
-            <select
-              className="admin-select"
-              value={selectedShiftId ?? ''}
-              onChange={(e) => setSelectedShiftId(Number(e.target.value))}
-              style={{ marginBottom: 12 }}
-            >
-              <option value="">Select classroom</option>
-              {shifts.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-            <div className="admin-autocomplete" ref={teacherSearchRef} style={{ marginBottom: 12 }}>
-              <input
-                className="admin-input"
-                placeholder="Type a name, username or email…"
-                value={teacherSearchUser}
-                onChange={(e) => setTeacherSearchUser(e.target.value)}
-                onFocus={() => {
-                  if (teacherSuggestions.length) setTeacherSearchOpen(true);
-                }}
-                style={{ width: '100%' }}
-                disabled={!selectedShiftId}
-              />
-              {teacherSearchOpen && teacherSearchUser.trim().length >= 2 && (
-                <ul className="admin-autocomplete__list" role="listbox">
-                  {teacherSearching && (
-                    <li className="admin-autocomplete__empty">Searching…</li>
-                  )}
-                  {!teacherSearching && teacherSuggestions.length === 0 && (
-                    <li className="admin-autocomplete__empty">No users found</li>
-                  )}
-                  {!teacherSearching &&
-                    teacherSuggestions.map((u) => (
-                      <li key={u.moodleUserId}>
-                        <button
-                          type="button"
-                          className="admin-autocomplete__item"
-                          onClick={() => void assignTeacher(u)}
-                        >
-                          <strong>{u.fullname}</strong>
-                          <span>
-                            {u.username}
-                            {u.email ? ` · ${u.email}` : ''}
-                          </span>
-                        </button>
-                      </li>
-                    ))}
-                </ul>
-              )}
-            </div>
-            <ul className="admin-course-list">
-              {teachers.map((t) => (
-                <li key={t.id}>
-                  <div style={{ flex: 1 }}>
-                    <strong>{t.fullName || `User #${t.moodleUserId}`}</strong>
-                    <span className="admin-folder-meta">
-                      {t.email || t.username || `id ${t.moodleUserId}`}
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    className="admin-btn ghost"
-                    onClick={() => void unassignTeacher(t.moodleUserId)}
-                  >
-                    remove
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : (
-          <>
-            <div className="admin-card">
-              <h3>New one-off event</h3>
-              <div className="admin-form-row" style={{ marginBottom: 10 }}>
-                <select
-                  className="admin-select"
-                  value={eventForm.shiftId}
-                  onChange={(e) => setEventForm({ ...eventForm, shiftId: e.target.value })}
-                >
-                  <option value="">Target shift</option>
-                  {shifts.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name}
-                    </option>
-                  ))}
-                </select>
-                <input
-                  className="admin-input"
-                  placeholder="Title"
-                  value={eventForm.title}
-                  onChange={(e) => setEventForm({ ...eventForm, title: e.target.value })}
-                  style={{ flex: 1 }}
-                />
-              </div>
-              <div className="admin-form-row">
-                <input
-                  type="datetime-local"
-                  className="admin-input"
-                  value={eventForm.startsAt}
-                  onChange={(e) => setEventForm({ ...eventForm, startsAt: e.target.value })}
-                />
-                <input
-                  type="datetime-local"
-                  className="admin-input"
-                  value={eventForm.endsAt}
-                  onChange={(e) => setEventForm({ ...eventForm, endsAt: e.target.value })}
-                />
-                <input
-                  className="admin-input"
-                  placeholder="Meet URL"
-                  value={eventForm.meetUrl}
-                  onChange={(e) => setEventForm({ ...eventForm, meetUrl: e.target.value })}
-                />
-                <button type="button" className="admin-btn primary" onClick={() => void createEvent()}>
-                  Create
-                </button>
-              </div>
-            </div>
-            <div className="admin-card">
-              <h3>Events</h3>
-              <ul className="admin-course-list">
-                {events.map((ev) => (
-                  <li key={ev.id}>
-                    <div style={{ flex: 1 }}>
-                      <strong>{ev.title}</strong>
-                      <span className="admin-folder-meta">
-                        {ev.shiftName} · {new Date(ev.startsAt).toLocaleString('en-US')}
-                      </span>
-                    </div>
-                    <button type="button" className="admin-btn danger" onClick={() => void deleteEvent(ev.id)}>
-                      Delete
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </>
-        )}
+      {loading ? (
+        <p className="page-description">Loading…</p>
+      ) : tab === 'shifts' ? (
+        <ShiftForm
+          shiftForm={shiftForm}
+          setShiftForm={setShiftForm}
+          allFlat={allFlat}
+          shifts={shifts}
+          onToggleDay={toggleDay}
+          onCreate={() => void createShift()}
+          onDelete={(id) => void deleteShift(id)}
+        />
+      ) : tab === 'enroll' ? (
+        <ShiftRosterPanel
+          role="student"
+          shifts={shifts}
+          selectedShiftId={selectedShiftId}
+          onSelectShift={setSelectedShiftId}
+          members={enrollments}
+          searchRef={studentSearchRef}
+          searchValue={searchUser}
+          onSearchChange={setSearchUser}
+          searchOpen={studentSearchOpen}
+          onSearchFocus={() => {
+            if (visibleStudentSuggestions.length) setStudentSearchOpen(true);
+          }}
+          searching={studentSearching}
+          suggestions={visibleStudentSuggestions}
+          onAssign={(u) => void enrollUser(u)}
+          onRemove={(id) => void unenroll(id)}
+        />
+      ) : tab === 'teachers' ? (
+        <ShiftRosterPanel
+          role="teacher"
+          shifts={shifts}
+          selectedShiftId={selectedShiftId}
+          onSelectShift={setSelectedShiftId}
+          members={teachers}
+          searchRef={teacherSearchRef}
+          searchValue={teacherSearchUser}
+          onSearchChange={setTeacherSearchUser}
+          searchOpen={teacherSearchOpen}
+          onSearchFocus={() => {
+            if (visibleTeacherSuggestions.length) setTeacherSearchOpen(true);
+          }}
+          searching={teacherSearching}
+          suggestions={visibleTeacherSuggestions}
+          onAssign={(u) => void assignTeacher(u)}
+          onRemove={(id) => void unassignTeacher(id)}
+        />
+      ) : (
+        <ShiftEventsPanel
+          eventForm={eventForm}
+          setEventForm={setEventForm}
+          shifts={shifts}
+          events={events}
+          onCreate={() => void createEvent()}
+          onDelete={(id) => void deleteEvent(id)}
+        />
+      )}
     </div>
   );
 };

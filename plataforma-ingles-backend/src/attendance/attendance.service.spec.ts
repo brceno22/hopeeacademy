@@ -52,19 +52,17 @@ describe('AttendanceService', () => {
     });
     sessionRepo.save.mockImplementation(async (x) => ({ id: 50, ...x }));
 
-    sessionRepo.findOne
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({
-        id: 50,
-        shiftId: 3,
-        sessionDate: '2026-07-29',
-        title: 'B1 Evening',
-        status: 'closed',
-        moodleCourseId: null,
-        openedByUserId: null,
-        openedAt: null,
-        closedAt: null,
-      });
+    sessionRepo.findOne.mockResolvedValueOnce(null).mockResolvedValueOnce({
+      id: 50,
+      shiftId: 3,
+      sessionDate: '2026-07-29',
+      title: 'B1 Evening',
+      status: 'closed',
+      moodleCourseId: null,
+      openedByUserId: null,
+      openedAt: null,
+      closedAt: null,
+    });
 
     const result = await service.createOrGetSession('tok', {
       shiftId: 3,
@@ -166,9 +164,9 @@ describe('AttendanceService', () => {
     sessionRepo.findOne.mockResolvedValue({ id: 50, shiftId: 3, status: 'closed' });
     calendarService.assertTeacherShift.mockResolvedValue({ userId: 9, shift: { id: 3 } });
 
-    await expect(
-      service.markAttendance('tok', 50, 101, { present: true }),
-    ).rejects.toThrow('La asistencia debe estar abierta');
+    await expect(service.markAttendance('tok', 50, 101, { present: true })).rejects.toThrow(
+      'La asistencia debe estar abierta',
+    );
   });
 
   it('markAttendance rejects students not in the shift', async () => {
@@ -176,9 +174,9 @@ describe('AttendanceService', () => {
     calendarService.assertTeacherShift.mockResolvedValue({ userId: 9, shift: { id: 3 } });
     enrollmentRepo.findOne.mockResolvedValue(null);
 
-    await expect(
-      service.markAttendance('tok', 50, 999, { present: true }),
-    ).rejects.toThrow('El alumno no está matriculado en este turno');
+    await expect(service.markAttendance('tok', 50, 999, { present: true })).rejects.toThrow(
+      'El alumno no está matriculado en este turno',
+    );
   });
 
   it('closeSession finalizes unmarked students as absent', async () => {
@@ -195,13 +193,8 @@ describe('AttendanceService', () => {
     };
     sessionRepo.findOne.mockResolvedValue(session);
     calendarService.assertTeacherShift.mockResolvedValue({ userId: 9, shift: { id: 3 } });
-    enrollmentRepo.find.mockResolvedValue([
-      { moodleUserId: 101 },
-      { moodleUserId: 102 },
-    ]);
-    checkInRepo.find.mockResolvedValue([
-      { moodleUserId: 101, status: 'present' },
-    ]);
+    enrollmentRepo.find.mockResolvedValue([{ moodleUserId: 101 }, { moodleUserId: 102 }]);
+    checkInRepo.find.mockResolvedValue([{ moodleUserId: 101, status: 'present' }]);
     sessionRepo.save.mockImplementation(async (x) => x);
 
     const result = await service.closeSession('tok', 50);

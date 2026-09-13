@@ -1,0 +1,16 @@
+export { StudentLayout } from '@/layouts/StudentLayout';
+export { AttendancePage } from '@/pages/student/AttendancePage';
+export { CalendarPage } from '@/pages/student/CalendarPage';
+export { ClassDetailPage } from '@/pages/student/ClassDetailPage';
+export { CoursesListPage } from '@/pages/student/CoursesListPage';
+export { CourseViewPage } from '@/pages/student/CourseViewPage';
+export { ExamTakePage } from '@/pages/student/ExamTakePage';
+export { ExamsPage } from '@/pages/student/ExamsPage';
+export { ForumPage } from '@/pages/student/ForumPage';
+export { HomePage } from '@/pages/student/HomePage';
+export { MicrolearningPage } from '@/pages/student/MicrolearningPage';
+export { ProfilePage } from '@/pages/student/ProfilePage';
+export { ProgramPage } from '@/pages/student/ProgramPage';
+export { ProgressView } from '@/pages/student/ProgressView';
+export { RecordingPlayerPage } from '@/pages/student/RecordingPlayerPage';
+export { RecordingsPage } from '@/pages/student/RecordingsPage';

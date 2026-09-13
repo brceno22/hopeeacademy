@@ -1,49 +1,42 @@
 import React, { useEffect, useState } from 'react';
-import { buildFileProxyUrl } from '@/core/utils/fileProxy';
+import { cleanMoodleFileUrl, fetchFileProxyUrl } from '@/core/utils/fileProxy';
 
 interface Props {
   fileUrl: string;
-  token: string;
   title: string;
   moodleUrl?: string;
+}
+
+interface Resolved {
+  key: string;
+  blobUrl: string | null;
+  proxyUrl: string;
+  error: string;
 }
 
 /**
  * Loads Moodle files via /files/proxy as a blob and shows them in a same-origin
  * iframe (blob:). Cross-origin PDF iframes are often blank even when download works.
  */
-export const ResourceFileViewer: React.FC<Props> = ({
-  fileUrl,
-  token,
-  title,
-  moodleUrl,
-}) => {
-  const [blobUrl, setBlobUrl] = useState<string | null>(null);
-  const [proxyUrl, setProxyUrl] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+export const ResourceFileViewer: React.FC<Props> = ({ fileUrl, title, moodleUrl }) => {
+  const [resolved, setResolved] = useState<Resolved | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     let objectUrl: string | null = null;
 
-    const cleanUrl = fileUrl
-      .replace('webservice/pluginfile.php', 'pluginfile.php')
-      .replace(/[?&]forcedownload=1/g, '');
-    const proxy = buildFileProxyUrl(cleanUrl, token);
-    setProxyUrl(proxy);
-    setLoading(true);
-    setError('');
-    setBlobUrl(null);
-
-    (async () => {
+    void (async () => {
       try {
+        const proxy = await fetchFileProxyUrl(cleanMoodleFileUrl(fileUrl));
+        if (cancelled) return;
+        if (!proxy) throw new Error('Could not authorize the file');
+
         const res = await fetch(proxy, { credentials: 'omit' });
         if (!res.ok) {
           let detail = `HTTP ${res.status}`;
           try {
-            const j = (await res.json()) as { message?: string; detail?: string };
-            detail = j.detail || j.message || detail;
+            const j = (await res.json()) as { message?: string };
+            detail = j.message || detail;
           } catch {
             // ignore
           }
@@ -67,13 +60,16 @@ export const ResourceFileViewer: React.FC<Props> = ({
           URL.revokeObjectURL(objectUrl);
           return;
         }
-        setBlobUrl(objectUrl);
+        setResolved({ key: fileUrl, blobUrl: objectUrl, proxyUrl: proxy, error: '' });
       } catch (err: unknown) {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : 'Could not load file');
+          setResolved({
+            key: fileUrl,
+            blobUrl: null,
+            proxyUrl: '',
+            error: err instanceof Error ? err.message : 'Could not load file',
+          });
         }
-      } finally {
-        if (!cancelled) setLoading(false);
       }
     })();
 
@@ -81,7 +77,12 @@ export const ResourceFileViewer: React.FC<Props> = ({
       cancelled = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [fileUrl, token]);
+  }, [fileUrl]);
+
+  const loading = resolved?.key !== fileUrl;
+  const blobUrl = resolved?.key === fileUrl ? resolved.blobUrl : null;
+  const proxyUrl = resolved?.key === fileUrl ? resolved.proxyUrl : '';
+  const error = resolved?.key === fileUrl ? resolved.error : '';
 
   if (loading) {
     return <p className="page-description">Loading file…</p>;

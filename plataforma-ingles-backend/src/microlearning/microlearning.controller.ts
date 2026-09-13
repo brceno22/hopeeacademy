@@ -1,19 +1,9 @@
-import {
-  Body,
-  Controller,
-  Get,
-  ParseArrayPipe,
-  Post,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, Get, ParseArrayPipe, Post, UseGuards } from '@nestjs/common';
 import { AdminGuard } from '../auth/admin.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { MoodleAuthGuard } from '../auth/moodle-auth.guard';
 import type { MoodleUser } from '../auth/moodle-user.types';
-import {
-  CompleteMicrolearningDto,
-  CreateMicrolearningDto,
-} from './dto/microlearning.dto';
+import { CompleteMicrolearningDto, CreateMicrolearningDto } from './dto/microlearning.dto';
 import { MicrolearningService } from './microlearning.service';
 
 @Controller('microlearning')
@@ -28,10 +18,7 @@ export class MicrolearningController {
 
   @UseGuards(MoodleAuthGuard)
   @Post('complete')
-  async markAsCompleted(
-    @Body() body: CompleteMicrolearningDto,
-    @CurrentUser() user: MoodleUser,
-  ) {
+  async markAsCompleted(@Body() body: CompleteMicrolearningDto, @CurrentUser() user: MoodleUser) {
     return this.microlearningService.markAsCompleted(
       user.token,
       Number(body.contentId),

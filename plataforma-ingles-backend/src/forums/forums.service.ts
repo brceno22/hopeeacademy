@@ -1,4 +1,10 @@
-import { ForbiddenException, HttpException, Injectable, Logger } from '@nestjs/common';
+import {
+  ForbiddenException,
+  HttpException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { MoodleService } from '../moodle/moodle.service';
 
 interface MoodleForum {
@@ -25,7 +31,11 @@ export class ForumsService {
 
   async getForumsByCourse(courseId: number, token: string) {
     const params = { 'courseids[0]': courseId };
-    const response = await this.moodleService.request('mod_forum_get_forums_by_courses', params, token);
+    const response = await this.moodleService.request(
+      'mod_forum_get_forums_by_courses',
+      params,
+      token,
+    );
     return response || [];
   }
 
@@ -50,6 +60,63 @@ export class ForumsService {
     );
 
     return response.posts || [];
+  }
+
+  /**
+   * Resolve the community forum for the student and return discussions + forumId
+   * so the UI can create topics. Prefers name match / non-news forums.
+   */
+  async getAutoCommunityForum(token: string, userId: number) {
+    const courses = await this.moodleService.getUserCourses(token, userId);
+    if (!courses.length) {
+      throw new NotFoundException('El estudiante no está inscrito en ningún curso.');
+    }
+
+    const candidates: MoodleForum[] = [];
+    for (const course of courses) {
+      try {
+        const forums = (await this.getForumsByCourse(course.id, token)) as MoodleForum[];
+        if (Array.isArray(forums)) candidates.push(...forums);
+      } catch (err) {
+        this.logger.warn(
+          `getAutoCommunityForum course=${course.id}: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
+
+    if (!candidates.length) {
+      throw new NotFoundException(
+        'No se encontró ningún foro activo en los cursos del estudiante.',
+      );
+    }
+
+    const forum = this.pickCommunityForum(candidates);
+    const forumId = Number(forum.id);
+    const discussions = await this.getForumDiscussions(forumId, token);
+
+    return {
+      forumId,
+      forumName: forum.name || null,
+      forumType: forum.type || null,
+      cancreatediscussions: forum.cancreatediscussions ?? null,
+      discussions,
+    };
+  }
+
+  private pickCommunityForum(forums: MoodleForum[]): MoodleForum {
+    const nonNews = forums.filter((f) => (f.type || '').toLowerCase() !== 'news');
+    const pool = nonNews.length ? nonNews : forums;
+
+    const communityName = /community|comunidad|general|discuss/i;
+    const byName = pool.find((f) => communityName.test(f.name || ''));
+    if (byName) return byName;
+
+    const canCreate = pool.find(
+      (f) => f.cancreatediscussions === true || f.cancreatediscussions === 1,
+    );
+    if (canCreate) return canCreate;
+
+    return pool[0];
   }
 
   /**
@@ -79,7 +146,11 @@ export class ForumsService {
     return { forumId: forumIdOrCmid, forum: null };
   }
 
-  private async listUserGroupIds(courseId: number, userId: number, token: string): Promise<number[]> {
+  private async listUserGroupIds(
+    courseId: number,
+    userId: number,
+    token: string,
+  ): Promise<number[]> {
     try {
       const groupsPayload = await this.moodleService.request<
         { groups?: MoodleGroup[] } | MoodleGroup[]
@@ -204,11 +275,13 @@ export class ForumsService {
     );
   }
 
-  async addDiscussionPost(postId: number, message: string, token: string) {
+  async addDiscussionPost(postId: number, message: string, token: string, subject?: string) {
+    const subjectText = (subject?.trim() || 'Re:').slice(0, 255);
     return this.moodleService.requestPostForm(
       'mod_forum_add_discussion_post',
       {
         postid: postId,
+        subject: subjectText,
         message: message.trim(),
       },
       token,

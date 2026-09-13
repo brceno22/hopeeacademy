@@ -67,9 +67,7 @@ export const MicrolearningWidget: React.FC = () => {
 
   const handleComplete = () => {
     if (!data.content) return;
-    completeMutation.mutate(data.content.id, {
-      onError: () => alert('Failed to save progress'),
-    });
+    completeMutation.mutate(data.content.id);
   };
 
   return (
@@ -134,6 +132,22 @@ export const MicrolearningWidget: React.FC = () => {
                 ? 'Saving…'
                 : 'Got it! +1 day to my streak'}
             </button>
+            {completeMutation.isError && (
+              <div
+                style={{
+                  background: '#fef2f2',
+                  border: '1px solid #fecaca',
+                  color: '#ef4444',
+                  padding: '16px',
+                  borderRadius: '12px',
+                  marginTop: '12px',
+                  fontWeight: '600',
+                  width: '100%',
+                }}
+              >
+                Failed to save progress
+              </div>
+            )}
           </>
         )}
       </div>

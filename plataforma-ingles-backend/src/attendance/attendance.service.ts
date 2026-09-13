@@ -206,7 +206,7 @@ export class AttendanceService {
         moodleUserId: e.moodleUserId,
         fullName: info?.fullName || `User ${e.moodleUserId}`,
         email: info?.email ?? null,
-        status: (checkIn?.status as AttendanceRecordStatus | undefined) ?? null,
+        status: checkIn?.status ?? null,
         present,
         checkedInAt: checkIn?.checkedInAt ?? null,
         markedByUserId: checkIn?.markedByUserId ?? null,
@@ -215,8 +215,7 @@ export class AttendanceService {
 
     roster.sort(
       (a, b) =>
-        Number(b.present) - Number(a.present) ||
-        (a.fullName || '').localeCompare(b.fullName || ''),
+        Number(b.present) - Number(a.present) || (a.fullName || '').localeCompare(b.fullName || ''),
     );
 
     return {

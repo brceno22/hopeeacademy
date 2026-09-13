@@ -22,5 +22,5 @@ export class MicrolearningContent {
 
   // Usamos 'date' para que Postgres guarde solo YYYY-MM-DD
   @Column({ type: 'date' })
-  scheduledFor!: string; 
+  scheduledFor!: string;
 }

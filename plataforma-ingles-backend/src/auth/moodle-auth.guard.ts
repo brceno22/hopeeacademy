@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import type { Cache } from 'cache-manager';
+import type { Request } from 'express';
 import { MoodleService } from '../moodle/moodle.service';
 import { extractBearerToken } from './auth-token.util';
 import type { MoodleUser } from './moodle-user.types';
@@ -22,7 +23,7 @@ export class MoodleAuthGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const request = context.switchToHttp().getRequest();
+    const request = context.switchToHttp().getRequest<Request>();
     const token = extractBearerToken(request.headers?.authorization);
 
     const cacheKey = `moodle:user:${createHash('sha256').update(token).digest('hex').slice(0, 32)}`;

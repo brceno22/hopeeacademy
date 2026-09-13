@@ -16,13 +16,15 @@ export const MoodleCourseAutocomplete: React.FC<MoodleCourseAutocompleteProps> =
 }) => {
   const selected = courses.find((c) => String(c.id) === valueId);
   const [query, setQuery] = useState(selected ? selected.name : '');
+  const [syncedId, setSyncedId] = useState(valueId);
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const wrapRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (selected) setQuery(selected.name);
-  }, [selected?.id, selected?.name]);
+  if (valueId !== syncedId) {
+    setSyncedId(valueId);
+    setQuery(selected ? selected.name : '');
+  }
 
   useEffect(() => {
     const onDocClick = (e: MouseEvent) => {

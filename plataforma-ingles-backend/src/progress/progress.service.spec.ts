@@ -27,7 +27,12 @@ describe('ProgressService', () => {
     jest.clearAllMocks();
     moodleService.isEnrolledInCourse.mockResolvedValue(true);
     coursesService.getCourseContents.mockResolvedValue([
-      { modules: [{ id: 5, type: 'resource' }, { id: 6, type: 'forum' }] },
+      {
+        modules: [
+          { id: 5, type: 'resource' },
+          { id: 6, type: 'forum' },
+        ],
+      },
     ]);
     progressRepository.findOne.mockResolvedValue(null);
   });

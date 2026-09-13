@@ -9,7 +9,7 @@ export class UserStreak {
   userId!: number;
 
   @Column({ type: 'int', default: 0 })
-  currentStreak! : number;
+  currentStreak!: number;
 
   // Fecha del último día que completó la píldora (YYYY-MM-DD)
   @Column({ type: 'date', nullable: true })

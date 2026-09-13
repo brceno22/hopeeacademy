@@ -4,6 +4,7 @@ import { MoodleModule } from '../moodle/moodle.module';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { AdminGuard } from './admin.guard';
+import { AdminSessionService } from './admin-session.service';
 import { MoodleAuthGuard } from './moodle-auth.guard';
 
 @Module({
@@ -14,8 +15,8 @@ import { MoodleAuthGuard } from './moodle-auth.guard';
     }),
     MoodleModule,
   ],
-  providers: [AuthService, AdminGuard, MoodleAuthGuard],
+  providers: [AuthService, AdminGuard, AdminSessionService, MoodleAuthGuard],
   controllers: [AuthController],
-  exports: [AuthService, AdminGuard, MoodleAuthGuard, MoodleModule],
+  exports: [AuthService, AdminGuard, AdminSessionService, MoodleAuthGuard, MoodleModule],
 })
 export class AuthModule {}

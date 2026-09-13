@@ -1,5 +1,40 @@
+import { CalendarEventsService } from './calendar-events.service';
 import { CalendarService } from './calendar.service';
 import { occurrenceStatus } from './calendar.util';
+import { ShiftAdminService } from './shift-admin.service';
+import { ShiftRosterService } from './shift-roster.service';
+
+function makeCalendarService(deps: {
+  shiftRepo?: unknown;
+  enrollmentRepo?: unknown;
+  teacherRepo?: unknown;
+  eventRepo?: unknown;
+  folderRepo?: unknown;
+  moodleService?: unknown;
+  programSync?: unknown;
+}) {
+  const shiftAdmin = new ShiftAdminService(
+    (deps.shiftRepo ?? {}) as never,
+    (deps.teacherRepo ?? {}) as never,
+    (deps.folderRepo ?? {}) as never,
+    (deps.moodleService ?? {}) as never,
+  );
+  const roster = new ShiftRosterService(
+    (deps.enrollmentRepo ?? {}) as never,
+    (deps.teacherRepo ?? {}) as never,
+    (deps.moodleService ?? {}) as never,
+    (deps.programSync ?? {}) as never,
+    shiftAdmin,
+  );
+  const events = new CalendarEventsService(
+    (deps.eventRepo ?? {}) as never,
+    (deps.enrollmentRepo ?? {}) as never,
+    (deps.teacherRepo ?? {}) as never,
+    (deps.moodleService ?? {}) as never,
+    shiftAdmin,
+  );
+  return new CalendarService(shiftAdmin, roster, events);
+}
 
 describe('CalendarService teacherCanManageShift', () => {
   const teacherRepo = {
@@ -7,21 +42,13 @@ describe('CalendarService teacherCanManageShift', () => {
     find: jest.fn(),
   };
 
-  const service = new CalendarService(
-    {} as any,
-    {} as any,
-    teacherRepo as any,
-    {} as any,
-    {} as any,
-    {} as any,
-    {} as any,
-  );
+  const service = makeCalendarService({ teacherRepo });
 
   beforeEach(() => jest.clearAllMocks());
 
   it('allows teacher assigned to the shift', async () => {
     teacherRepo.findOne.mockResolvedValue({ id: 1, shiftId: 10, moodleUserId: 5 });
-    const ok = await service.teacherCanManageShift('t', 5, { id: 10 } as any);
+    const ok = await service.teacherCanManageShift('t', 5, { id: 10 } as never);
     expect(ok).toBe(true);
     expect(teacherRepo.findOne).toHaveBeenCalledWith({
       where: { shiftId: 10, moodleUserId: 5 },
@@ -30,7 +57,7 @@ describe('CalendarService teacherCanManageShift', () => {
 
   it('denies teacher not assigned to the shift', async () => {
     teacherRepo.findOne.mockResolvedValue(null);
-    const ok = await service.teacherCanManageShift('t', 5, { id: 10 } as any);
+    const ok = await service.teacherCanManageShift('t', 5, { id: 10 } as never);
     expect(ok).toBe(false);
   });
 });
@@ -44,15 +71,7 @@ describe('CalendarService listTeacherShifts', () => {
     getUserIdFromToken: jest.fn().mockResolvedValue(5),
   };
 
-  const service = new CalendarService(
-    {} as any,
-    {} as any,
-    teacherRepo as any,
-    {} as any,
-    {} as any,
-    moodleService as any,
-    {} as any,
-  );
+  const service = makeCalendarService({ teacherRepo, moodleService });
 
   beforeEach(() => jest.clearAllMocks());
 
@@ -123,15 +142,12 @@ describe('CalendarService enroll Moodle sync', () => {
     unenrolUserFromProgramIfOrphan: jest.fn(),
   };
 
-  const service = new CalendarService(
-    shiftRepo as any,
-    enrollmentRepo as any,
-    teacherRepo as any,
-    {} as any,
-    {} as any,
-    {} as any,
-    programSync as any,
-  );
+  const service = makeCalendarService({
+    shiftRepo,
+    enrollmentRepo,
+    teacherRepo,
+    programSync,
+  });
 
   beforeEach(() => jest.clearAllMocks());
 
@@ -169,15 +185,15 @@ describe('CalendarService enroll Moodle sync', () => {
 describe('occurrenceStatus', () => {
   it('classifies upcoming, live, and done', () => {
     const now = new Date('2026-07-30T18:30:00.000Z');
-    expect(
-      occurrenceStatus('2026-07-30T19:00:00.000Z', '2026-07-30T21:00:00.000Z', now),
-    ).toBe('upcoming');
-    expect(
-      occurrenceStatus('2026-07-30T18:00:00.000Z', '2026-07-30T20:00:00.000Z', now),
-    ).toBe('live');
-    expect(
-      occurrenceStatus('2026-07-30T16:00:00.000Z', '2026-07-30T18:00:00.000Z', now),
-    ).toBe('done');
+    expect(occurrenceStatus('2026-07-30T19:00:00.000Z', '2026-07-30T21:00:00.000Z', now)).toBe(
+      'upcoming',
+    );
+    expect(occurrenceStatus('2026-07-30T18:00:00.000Z', '2026-07-30T20:00:00.000Z', now)).toBe(
+      'live',
+    );
+    expect(occurrenceStatus('2026-07-30T16:00:00.000Z', '2026-07-30T18:00:00.000Z', now)).toBe(
+      'done',
+    );
   });
 });
 
@@ -195,15 +211,12 @@ describe('CalendarService getTeacherToday', () => {
     getUserIdFromToken: jest.fn().mockResolvedValue(5),
   };
 
-  const service = new CalendarService(
-    {} as any,
-    enrollmentRepo as any,
-    teacherRepo as any,
-    eventRepo as any,
-    {} as any,
-    moodleService as any,
-    {} as any,
-  );
+  const service = makeCalendarService({
+    enrollmentRepo,
+    teacherRepo,
+    eventRepo,
+    moodleService,
+  });
 
   beforeEach(() => jest.clearAllMocks());
 

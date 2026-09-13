@@ -92,9 +92,7 @@ describe('ProgramEnrollmentSyncService', () => {
     linkRepo.find.mockResolvedValue([{ moodleCourseId: 10 }]);
 
     await service.unenrolUserFromProgramIfOrphan(1, 99, 'student');
-    expect(moodleService.unenrolUsers).toHaveBeenCalledWith([
-      { courseId: 10, userId: 99 },
-    ]);
+    expect(moodleService.unenrolUsers).toHaveBeenCalledWith([{ courseId: 10, userId: 99 }]);
   });
 
   it('syncCourseToExistingMembers enrols students and teachers of ancestor shifts', async () => {

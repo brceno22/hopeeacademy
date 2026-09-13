@@ -6,9 +6,12 @@ import { CoursesModule } from '../courses/courses.module';
 import { MoodleModule } from '../moodle/moodle.module';
 import { CalendarEvent } from './calendar-event.entity';
 import { CalendarController } from './calendar.controller';
+import { CalendarEventsService } from './calendar-events.service';
 import { CalendarService } from './calendar.service';
 import { ScheduleShift } from './schedule-shift.entity';
+import { ShiftAdminService } from './shift-admin.service';
 import { ShiftEnrollment } from './shift-enrollment.entity';
+import { ShiftRosterService } from './shift-roster.service';
 import { ShiftTeacher } from './shift-teacher.entity';
 
 @Module({
@@ -25,7 +28,7 @@ import { ShiftTeacher } from './shift-teacher.entity';
     CoursesModule,
   ],
   controllers: [CalendarController],
-  providers: [CalendarService],
+  providers: [CalendarService, ShiftAdminService, ShiftRosterService, CalendarEventsService],
   exports: [CalendarService],
 })
 export class CalendarModule {}

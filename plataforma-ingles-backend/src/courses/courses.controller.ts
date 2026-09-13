@@ -63,10 +63,7 @@ export class CoursesController {
 
   @UseGuards(AdminGuard)
   @Patch('admin/folders/:id')
-  updateFolder(
-    @Param('id', ParseIntPipe) id: number,
-    @Body() body: UpdateCourseFolderDto,
-  ) {
+  updateFolder(@Param('id', ParseIntPipe) id: number, @Body() body: UpdateCourseFolderDto) {
     return this.catalogService.updateFolder(id, body);
   }
 
@@ -99,10 +96,7 @@ export class CoursesController {
 
   @UseGuards(MoodleAuthGuard)
   @Get(':id/contents')
-  getCourseContents(
-    @Param('id', ParseIntPipe) id: number,
-    @CurrentUser() user: MoodleUser,
-  ) {
+  getCourseContents(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: MoodleUser) {
     return this.coursesService.getCourseContents(id, user.token);
   }
 }

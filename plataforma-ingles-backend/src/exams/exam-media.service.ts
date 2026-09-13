@@ -1,9 +1,4 @@
-import {
-  BadRequestException,
-  Injectable,
-  NotFoundException,
-  OnModuleInit,
-} from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createReadStream, existsSync, mkdirSync, writeFileSync } from 'fs';
 import { extname, join, resolve } from 'path';
@@ -85,12 +80,9 @@ export class ExamMediaService implements OnModuleInit {
     );
   }
 
-  saveUpload(file: {
-    buffer: Buffer;
-    originalname: string;
-    mimetype: string;
-    size: number;
-  }): { url: string } {
+  saveUpload(file: { buffer: Buffer; originalname: string; mimetype: string; size: number }): {
+    url: string;
+  } {
     const mime = (file.mimetype || '').toLowerCase();
     if (!ALLOWED_MIME.has(mime)) {
       throw new BadRequestException(
@@ -133,8 +125,7 @@ export class ExamMediaService implements OnModuleInit {
     }
 
     const ext = extname(filename).toLowerCase();
-    const contentType =
-      IMAGE_MIME[ext] || AUDIO_MIME[ext] || 'application/octet-stream';
+    const contentType = IMAGE_MIME[ext] || AUDIO_MIME[ext] || 'application/octet-stream';
 
     res.setHeader('Content-Type', contentType);
     res.setHeader('Cache-Control', 'public, max-age=86400');
