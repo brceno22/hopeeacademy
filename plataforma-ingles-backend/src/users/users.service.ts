@@ -11,7 +11,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { AxiosError } from 'axios';
 import { firstValueFrom } from 'rxjs';
 import { Repository } from 'typeorm';
-import { MoodleService } from 'src/moodle/moodle.service';
+import { MoodleService } from '../moodle/moodle.service';
 import { DEFAULT_AVATAR_COLOR, UserProfilePrefs } from './user-profile-prefs.entity';
 
 export interface UserProfile {
