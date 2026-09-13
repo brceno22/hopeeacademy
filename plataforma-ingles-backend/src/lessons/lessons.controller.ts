@@ -11,10 +11,7 @@ export class LessonsController {
   constructor(private readonly lessonsService: LessonsService) {}
 
   @Get(':id/pages')
-  async getLessonPages(
-    @Param('id', ParseIntPipe) id: number,
-    @CurrentUser() user: MoodleUser,
-  ) {
+  async getLessonPages(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: MoodleUser) {
     return this.lessonsService.getLessonPages(id, user.token);
   }
 

@@ -14,6 +14,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { Throttle } from '@nestjs/throttler';
 import { memoryStorage } from 'multer';
 import type { Response } from 'express';
 import { AdminGuard } from '../auth/admin.guard';
@@ -81,25 +82,26 @@ export class ExamsController {
 
   @UseGuards(MoodleAuthGuard)
   @Get('teacher/shifts/:shiftId/grades')
-  getShiftGrades(
-    @Param('shiftId', ParseIntPipe) shiftId: number,
-    @CurrentUser() user: MoodleUser,
-  ) {
+  getShiftGrades(@Param('shiftId', ParseIntPipe) shiftId: number, @CurrentUser() user: MoodleUser) {
     return this.examsService.getShiftGrades(user.token, shiftId);
   }
 
   @UseGuards(MoodleAuthGuard)
   @Get('course/:courseId')
-  getExamsByCourse(@Param('courseId', ParseIntPipe) courseId: number) {
-    return this.examsService.getExamsByCourse(courseId);
+  getExamsByCourse(
+    @Param('courseId', ParseIntPipe) courseId: number,
+    @CurrentUser() user: MoodleUser,
+  ) {
+    return this.examsService.getExamsByCourse(courseId, user.token, user.userId);
   }
 
   @UseGuards(MoodleAuthGuard)
   @Get(':id')
-  getExam(@Param('id', ParseIntPipe) id: number) {
-    return this.examsService.getExamForStudent(id);
+  getExam(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: MoodleUser) {
+    return this.examsService.getExamForStudent(id, user.token, user.userId);
   }
 
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @UseGuards(MoodleAuthGuard)
   @Post(':id/submit')
   submitAttempt(
@@ -119,16 +121,13 @@ export class ExamsController {
         answers[String(key)] = Number(value);
       }
     }
-    return this.examsService.submitAttempt(examId, user.userId, answers);
+    return this.examsService.submitAttempt(examId, user.userId, answers, user.token);
   }
 
   @UseGuards(MoodleAuthGuard)
   @Get(':id/attempts')
-  getMyAttempts(
-    @Param('id', ParseIntPipe) examId: number,
-    @CurrentUser() user: MoodleUser,
-  ) {
-    return this.examsService.getAttemptsByUser(examId, user.userId);
+  getMyAttempts(@Param('id', ParseIntPipe) examId: number, @CurrentUser() user: MoodleUser) {
+    return this.examsService.getOwnAttempts(examId, user.userId, user.token);
   }
 
   @UseGuards(AdminGuard)

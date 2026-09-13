@@ -11,6 +11,9 @@ import { Question } from './entities/question.entity';
 import { Option } from './entities/option.entity';
 import { Attempt } from './entities/attempt.entity';
 import { ExamMediaService } from './exam-media.service';
+import { ExamAdminService } from './exam-admin.service';
+import { ExamStudentService } from './exam-student.service';
+import { ExamGradebookService } from './exam-gradebook.service';
 
 @Module({
   imports: [
@@ -20,7 +23,13 @@ import { ExamMediaService } from './exam-media.service';
     CalendarModule,
     MoodleModule,
   ],
-  providers: [ExamsService, ExamMediaService],
+  providers: [
+    ExamsService,
+    ExamMediaService,
+    ExamAdminService,
+    ExamStudentService,
+    ExamGradebookService,
+  ],
   controllers: [ExamsController],
 })
 export class ExamsModule {}

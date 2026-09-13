@@ -55,13 +55,7 @@ describe('CoursesCatalogService assignCourse sync', () => {
 });
 
 describe('CoursesCatalogService pruneEmptyFolders', () => {
-  const service = new CoursesCatalogService(
-    {} as any,
-    {} as any,
-    {} as any,
-    {} as any,
-    {} as any,
-  );
+  const service = new CoursesCatalogService({} as any, {} as any, {} as any, {} as any, {} as any);
 
   it('removes folders without courses and keeps ancestors with enrolled content', () => {
     const tree = [
@@ -104,7 +98,7 @@ describe('CoursesCatalogService pruneEmptyFolders', () => {
       },
     ];
 
-    const pruned = service.pruneEmptyFolders(tree as any);
+    const pruned = service.pruneEmptyFolders(tree);
     expect(pruned).toHaveLength(1);
     expect(pruned[0].name).toBe('Root');
     expect(pruned[0].children).toHaveLength(1);

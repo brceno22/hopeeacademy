@@ -8,12 +8,7 @@ import { ProgressService } from './progress.service';
 import { ProgressController } from './progress.controller';
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([UserProgress]),
-    MoodleModule,
-    CoursesModule,
-    AuthModule,
-  ],
+  imports: [TypeOrmModule.forFeature([UserProgress]), MoodleModule, CoursesModule, AuthModule],
   controllers: [ProgressController],
   providers: [ProgressService],
   exports: [ProgressService],

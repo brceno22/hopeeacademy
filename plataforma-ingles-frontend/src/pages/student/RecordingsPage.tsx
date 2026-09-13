@@ -1,50 +1,13 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { Link } from 'react-router-dom';
-import api from '@/core/api/axios';
+import { useRecordings } from '@/core/hooks/useRecordings';
 import { EmptyState } from '@/core/ui/EmptyState';
 import '@/core/ui/ui.css';
 import './recordings-page.css';
 
-interface RecordingItem {
-  id: number;
-  folderId: number;
-  folderName: string | null;
-  title: string;
-  driveUrl: string;
-  embedUrl: string | null;
-  recordedAt: string | null;
-}
-
-interface RecordingGroup {
-  folderId: number;
-  folderName: string;
-  parentId: number | null;
-  recordings: RecordingItem[];
-}
-
 export const RecordingsPage: React.FC = () => {
-  const [groups, setGroups] = useState<RecordingGroup[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      setError('');
-      try {
-        const { data } = await api.get<RecordingGroup[]>('/recordings');
-        if (!cancelled) setGroups(data);
-      } catch {
-        if (!cancelled) setError('Could not load recorded classes');
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const { data: groups = [], isPending: loading, isError } = useRecordings();
+  const error = isError ? 'Could not load recorded classes' : '';
 
   if (loading) {
     return (

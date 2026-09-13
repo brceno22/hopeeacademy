@@ -140,7 +140,7 @@ export class CoursesService {
           }
 
           if (contenidosDidacticos.includes(mod.modname)) {
-            return this.lessonsService.formatLesson(mod) as CourseModuleView;
+            return this.lessonsService.formatLesson(mod);
           }
 
           if (foros.includes(mod.modname)) {

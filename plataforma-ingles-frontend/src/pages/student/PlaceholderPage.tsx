@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { useStudentLayout } from '../../layouts/StudentLayoutContext';
+import { useStudentLayout } from '../../layouts/useStudentLayout';
 
 interface Props {
   title: string;

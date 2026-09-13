@@ -30,7 +30,9 @@ export function toDriveEmbedUrl(rawUrl: string): string | null {
   }
 
   // docs.google.com/presentation or document — leave as-is preview if possible
-  const docsMatch = url.pathname.match(/\/(document|presentation|spreadsheets)\/d\/([a-zA-Z0-9_-]+)/);
+  const docsMatch = url.pathname.match(
+    /\/(document|presentation|spreadsheets)\/d\/([a-zA-Z0-9_-]+)/,
+  );
   if (docsMatch?.[2]) {
     const kind = docsMatch[1];
     return `https://docs.google.com/${kind}/d/${docsMatch[2]}/preview`;

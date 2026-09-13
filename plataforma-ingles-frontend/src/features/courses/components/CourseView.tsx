@@ -2,8 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import api from '@/core/api/axios';
-import { useAuth } from '@/core/context/AuthContext';
-import { buildFileProxyUrl } from '@/core/utils/fileProxy';
+import { cleanMoodleFileUrl, fetchFileProxyUrls } from '@/core/utils/fileProxy';
 import { sanitizeHtml } from '@/core/utils/sanitize';
 import { ForumView } from '@/features/forums/components/ForumView';
 import { ExamView } from './ExamView';
@@ -34,29 +33,39 @@ interface ExamSummary {
   title?: string;
 }
 
-function rewriteMoodleMedia(html: string, token: string): string {
-  let next = html.replace(
-    /(https?:\/\/[^"'\s]*?pluginfile\.php\/[^"'\s]*?)(?=["'\s])/g,
-    (match) => {
-      const cleanUrl = match
-        .replace('webservice/pluginfile.php', 'pluginfile.php')
-        .replace(/[?&]forcedownload=1/g, '');
-      return buildFileProxyUrl(cleanUrl, token);
-    },
-  );
+const PLUGINFILE_RE = /(https?:\/\/[^"'\s]*?pluginfile\.php\/[^"'\s]*?)(?=["'\s])/g;
 
-  next = next.replace(
-    /<a[^>]*href="https?:\/\/(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})"[^>]*>.*?<\/a>/gi,
+function embedYoutubeLinks(html: string): string {
+  return html.replace(
+    /<a[^>]*href="https?:\/\/(?:www\.)?(?:youtube\.com\/(?:[^/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})"[^>]*>.*?<\/a>/gi,
     '<div style="position:relative; padding-bottom:56.25%; height:0; margin: 20px 0; border-radius: 12px; overflow: hidden;"><iframe style="position:absolute; top:0; left:0; width:100%; height:100%; border:0;" src="https://www.youtube.com/embed/$1" allowfullscreen></iframe></div>',
   );
+}
 
-  return sanitizeHtml(next);
+/**
+ * Los archivos de Moodle se sirven por el proxy con un ticket de corta
+ * duración, así que primero hay que pedir los tickets de todas las URLs del
+ * HTML en una sola llamada y después reescribirlo.
+ */
+async function rewriteMoodleMedia(html: string): Promise<string> {
+  const matches = Array.from(html.matchAll(PLUGINFILE_RE), (m) => m[0]);
+  const cleanedByOriginal = new Map(matches.map((url) => [url, cleanMoodleFileUrl(url)]));
+
+  let proxied = new Map<string, string>();
+  if (cleanedByOriginal.size > 0) {
+    proxied = await fetchFileProxyUrls([...cleanedByOriginal.values()]);
+  }
+
+  const withProxiedMedia = html.replace(PLUGINFILE_RE, (match) => {
+    const cleaned = cleanedByOriginal.get(match);
+    return (cleaned && proxied.get(cleaned)) || match;
+  });
+
+  return sanitizeHtml(embedYoutubeLinks(withProxiedMedia));
 }
 
 export const CourseView: React.FC = () => {
   const { id } = useParams<{ id: string }>();
-  const { user } = useAuth();
-  const token = user?.token || localStorage.getItem('token') || '';
   const navigate = useNavigate();
 
   const [sections, setSections] = useState<Section[]>([]);
@@ -65,7 +74,11 @@ export const CourseView: React.FC = () => {
   const [examenes, setExamenes] = useState<ExamSummary[]>([]);
   const [completedModuleIds, setCompletedModuleIds] = useState<number[]>([]);
   const [markingId, setMarkingId] = useState<number | null>(null);
+  const [markError, setMarkError] = useState('');
   const [error, setError] = useState('');
+  const [renderedHtml, setRenderedHtml] = useState<{ moduleId: number; html: string } | null>(
+    null,
+  );
 
   useEffect(() => {
     const controller = new AbortController();
@@ -102,10 +115,41 @@ export const CourseView: React.FC = () => {
     return () => controller.abort();
   }, [id]);
 
+  // Reescribir el HTML requiere pedir tickets al backend, así que no puede
+  // hacerse durante el render.
+  useEffect(() => {
+    const moduleType = activeModule?.type?.replace(/"/g, '').trim();
+    const description = activeModule?.description;
+    const moduleId = activeModule?.id;
+
+    if (!description || moduleId == null) return;
+    if (moduleType !== 'label' && moduleType !== 'page') return;
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const html = await rewriteMoodleMedia(description);
+        if (!cancelled) setRenderedHtml({ moduleId, html });
+      } catch {
+        // Sin tickets al menos se muestra el texto, con las imágenes rotas.
+        if (!cancelled) setRenderedHtml({ moduleId, html: sanitizeHtml(description) });
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeModule]);
+
+  // Derivado para no arrastrar el HTML del módulo anterior mientras carga.
+  const moduleHtml =
+    renderedHtml && renderedHtml.moduleId === activeModule?.id ? renderedHtml.html : '';
+
   const handleMarkAsCompleted = async () => {
     if (!activeModule) return;
     try {
       setMarkingId(activeModule.id);
+      setMarkError('');
       await api.post('/progress/mark', {
         courseId: Number(id),
         moduleId: activeModule.id,
@@ -113,7 +157,7 @@ export const CourseView: React.FC = () => {
       });
       setCompletedModuleIds((prev) => [...prev, activeModule.id]);
     } catch {
-alert('Failed to save progress');
+      setMarkError('Failed to save progress');
     } finally {
       setMarkingId(null);
     }
@@ -269,15 +313,10 @@ alert('Failed to save progress');
                 }
 
                 if (moduleType === 'label' || moduleType === 'page') {
-                  const htmlConToken =
-                    token && activeModule.description
-                      ? rewriteMoodleMedia(activeModule.description, token)
-                      : sanitizeHtml(activeModule.description);
-
-                  return htmlConToken ? (
+                  return moduleHtml ? (
                     <div
                       className="html-content-render"
-                      dangerouslySetInnerHTML={{ __html: htmlConToken }}
+                      dangerouslySetInnerHTML={{ __html: moduleHtml }}
                     />
                   ) : (
                     <p style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
@@ -288,11 +327,10 @@ alert('Failed to save progress');
 
                 if (moduleType === 'resource') {
                   const safeFileUrl = activeModule.fileUrl?.trim();
-                  if (safeFileUrl && token) {
+                  if (safeFileUrl) {
                     return (
                       <ResourceFileViewer
                         fileUrl={safeFileUrl}
-                        token={token}
                         title={activeModule.name}
                         moodleUrl={activeModule.url || undefined}
                       />
@@ -346,16 +384,34 @@ alert('Failed to save progress');
                   {isCompleted ? (
                     <div className="success-badge">✅ Lesson completed</div>
                   ) : (
-                    <button
-                      type="button"
-                      className="btn-success"
-                      onClick={handleMarkAsCompleted}
-                      disabled={markingId === activeModule.id}
-                    >
-                      {markingId === activeModule.id
-                        ? 'Saving...'
-                        : 'Mark as done ✓'}
-                    </button>
+                    <>
+                      {markError && (
+                        <div
+                          style={{
+                            background: '#fef2f2',
+                            border: '1px solid #fecaca',
+                            color: '#ef4444',
+                            padding: '16px',
+                            borderRadius: '12px',
+                            marginBottom: '24px',
+                            fontWeight: '600',
+                            textAlign: 'left',
+                          }}
+                        >
+                          {markError}
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        className="btn-success"
+                        onClick={handleMarkAsCompleted}
+                        disabled={markingId === activeModule.id}
+                      >
+                        {markingId === activeModule.id
+                          ? 'Saving...'
+                          : 'Mark as done ✓'}
+                      </button>
+                    </>
                   )}
                 </div>
               );

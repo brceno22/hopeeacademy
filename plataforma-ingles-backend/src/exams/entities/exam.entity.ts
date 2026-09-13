@@ -1,7 +1,6 @@
 import { Entity, PrimaryGeneratedColumn, Column, OneToMany, CreateDateColumn } from 'typeorm';
 import { Question } from './question.entity';
 
-
 @Entity('exams')
 export class Exam {
   @PrimaryGeneratedColumn()
@@ -30,6 +29,6 @@ export class Exam {
   @CreateDateColumn()
   createdAt!: Date;
 
-  @OneToMany(() => Question, q => q.exam, { cascade: true, eager: true })
+  @OneToMany(() => Question, (q) => q.exam, { cascade: true, eager: true })
   questions!: Question[];
 }

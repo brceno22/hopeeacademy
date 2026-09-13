@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Cropper, { type Area } from 'react-easy-crop';
 import api from '@/core/api/axios';
-import { DEFAULT_AVATAR_COLOR, useAuth } from '@/core/context/AuthContext';
-import { buildFileProxyUrl } from '@/core/utils/fileProxy';
-import { useStudentLayout } from '@/layouts/StudentLayoutContext';
+import { DEFAULT_AVATAR_COLOR, useAuth } from '@/core/context/auth';
+import { useFileProxyUrl } from '@/core/hooks/useFileProxyUrl';
+import { useStudentLayout } from '@/layouts/useStudentLayout';
 import './profile-page.css';
 
 interface UserProfile {
@@ -68,7 +68,7 @@ async function getCroppedBlob(
 }
 
 export const ProfilePage: React.FC = () => {
-  const { user, updateStudentProfile } = useAuth();
+  const { updateStudentProfile } = useAuth();
   const { setHeaderTitle, clearHeaderTabs } = useStudentLayout();
 
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -134,13 +134,13 @@ export const ProfilePage: React.FC = () => {
     };
   }, [updateStudentProfile]);
 
+  const { url: proxiedAvatar } = useFileProxyUrl(profile?.avatar || null);
+
   const displayAvatar = useMemo(() => {
     if (croppedPreview) return croppedPreview;
     if (avatarBroken) return null;
-    const raw = profile?.avatar;
-    if (!raw || !user?.token) return null;
-    return buildFileProxyUrl(raw, user.token);
-  }, [croppedPreview, profile?.avatar, user?.token, avatarBroken]);
+    return proxiedAvatar;
+  }, [croppedPreview, proxiedAvatar, avatarBroken]);
 
   const onCropComplete = useCallback((_area: Area, pixels: Area) => {
     setCroppedAreaPixels(pixels);

@@ -1,23 +1,9 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
-
-export interface HeaderTab {
-  id: string;
-  label: string;
-}
-
-interface StudentLayoutContextValue {
-  sidebarCollapsed: boolean;
-  toggleSidebar: () => void;
-  headerTitle: string;
-  setHeaderTitle: (title: string) => void;
-  headerTabs: HeaderTab[];
-  activeTabId: string | null;
-  setHeaderTabs: (tabs: HeaderTab[], activeId?: string) => void;
-  setActiveTabId: (id: string) => void;
-  clearHeaderTabs: () => void;
-}
-
-const StudentLayoutContext = createContext<StudentLayoutContextValue | null>(null);
+import React, { useCallback, useState } from 'react';
+import {
+  studentLayoutContext,
+  type HeaderTab,
+  type StudentLayoutContextValue,
+} from './useStudentLayout';
 
 export const StudentLayoutProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -37,27 +23,17 @@ export const StudentLayoutProvider: React.FC<{ children: React.ReactNode }> = ({
     setActiveTabId(null);
   }, []);
 
-  return (
-    <StudentLayoutContext.Provider
-      value={{
-        sidebarCollapsed,
-        toggleSidebar,
-        headerTitle,
-        setHeaderTitle,
-        headerTabs,
-        activeTabId,
-        setHeaderTabs,
-        setActiveTabId,
-        clearHeaderTabs,
-      }}
-    >
-      {children}
-    </StudentLayoutContext.Provider>
-  );
-};
+  const value: StudentLayoutContextValue = {
+    sidebarCollapsed,
+    toggleSidebar,
+    headerTitle,
+    setHeaderTitle,
+    headerTabs,
+    activeTabId,
+    setHeaderTabs,
+    setActiveTabId,
+    clearHeaderTabs,
+  };
 
-export function useStudentLayout() {
-  const ctx = useContext(StudentLayoutContext);
-  if (!ctx) throw new Error('useStudentLayout must be used within StudentLayout');
-  return ctx;
-}
+  return <studentLayoutContext.Provider value={value}>{children}</studentLayoutContext.Provider>;
+};

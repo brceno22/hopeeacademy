@@ -28,28 +28,45 @@ export const ForumDiscussion: React.FC<ForumDiscussionProps> = ({
   onBack,
 }) => {
   const [posts, setPosts] = useState<Post[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loadedId, setLoadedId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [replyMessage, setReplyMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [replyError, setReplyError] = useState('');
   const [collapsed, setCollapsed] = useState<Record<number, boolean>>({});
 
   const fetchPosts = async () => {
     try {
-      setLoading(true);
       const response = await api.get(`/forums/discussions/${discussionId}/posts`);
       setPosts(Array.isArray(response.data) ? response.data : response.data?.posts || []);
       setError(null);
     } catch {
       setError('There was an error loading the forum messages.');
     } finally {
-      setLoading(false);
+      setLoadedId(discussionId);
     }
   };
 
   useEffect(() => {
-    void fetchPosts();
+    let cancelled = false;
+    void (async () => {
+      try {
+        const response = await api.get(`/forums/discussions/${discussionId}/posts`);
+        if (cancelled) return;
+        setPosts(Array.isArray(response.data) ? response.data : response.data?.posts || []);
+        setError(null);
+      } catch {
+        if (!cancelled) setError('There was an error loading the forum messages.');
+      } finally {
+        if (!cancelled) setLoadedId(discussionId);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [discussionId]);
+
+  const loading = loadedId !== discussionId;
 
   const canReply =
     posts.length > 0 &&
@@ -66,6 +83,7 @@ export const ForumDiscussion: React.FC<ForumDiscussionProps> = ({
     if (!replyMessage.trim() || posts.length === 0 || !replyAllowed) return;
     try {
       setIsSubmitting(true);
+      setReplyError('');
       const parentPost = posts[0];
       const parentSubject = parentPost.subject?.trim();
       const replySubject = parentSubject
@@ -83,7 +101,7 @@ export const ForumDiscussion: React.FC<ForumDiscussionProps> = ({
       const raw =
         (err as { response?: { data?: { message?: string | string[] } } })?.response?.data
           ?.message || 'Failed to send the reply. Please try again.';
-      alert(Array.isArray(raw) ? raw.join(', ') : String(raw));
+      setReplyError(Array.isArray(raw) ? raw.join(', ') : String(raw));
     } finally {
       setIsSubmitting(false);
     }
@@ -167,6 +185,22 @@ export const ForumDiscussion: React.FC<ForumDiscussionProps> = ({
 
       {replyAllowed ? (
         <form onSubmit={handleReply} className="forum-reply-bar">
+          {replyError && (
+            <div
+              style={{
+                background: '#fef2f2',
+                border: '1px solid #fecaca',
+                color: '#ef4444',
+                padding: '16px',
+                borderRadius: '12px',
+                marginBottom: '24px',
+                fontWeight: '600',
+                width: '100%',
+              }}
+            >
+              {replyError}
+            </div>
+          )}
           <input
             type="text"
             className="forum-input-box"

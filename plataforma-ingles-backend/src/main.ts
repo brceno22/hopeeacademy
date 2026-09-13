@@ -5,15 +5,31 @@ import { randomUUID } from 'crypto';
 // Cargar .env ANTES de Nest (override: evita que un PORT viejo del entorno gane)
 loadEnv({ path: resolve(process.cwd(), '.env'), override: true });
 
-import { ValidationPipe } from '@nestjs/common';
+import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import type { NestExpressApplication } from '@nestjs/platform-express';
+import cookieParser from 'cookie-parser';
 import { json, urlencoded, Request, Response, NextFunction } from 'express';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
+import { parseTrustProxy, shouldEnableSwagger } from './config/env';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const logger = new Logger('Bootstrap');
+
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  app.enableShutdownHooks();
+
+  // Sin esto, detrás de un reverse proxy todas las requests comparten la IP del
+  // proxy y el rate limit se vuelve global en lugar de por cliente.
+  const trustProxy = parseTrustProxy(process.env.TRUST_PROXY);
+  if (trustProxy !== false) {
+    app.set('trust proxy', trustProxy);
+  }
+
+  app.use(cookieParser());
 
   const corsOrigins = (process.env.CORS_ORIGINS || '')
     .split(',')
@@ -36,10 +52,13 @@ async function bootstrap() {
         directives: {
           ...helmet.contentSecurityPolicy.getDefaultDirectives(),
           // Permitir embeber respuestas de esta API (PDF proxy) desde el front
-          'frame-ancestors': [
-            "'self'",
-            ...corsOrigins,
-          ],
+          'frame-ancestors': ["'self'", ...corsOrigins],
+          ...(shouldEnableSwagger()
+            ? {
+                'script-src': ["'self'", "'unsafe-inline'"],
+                'style-src': ["'self'", "'unsafe-inline'"],
+              }
+            : {}),
         },
       },
     }),
@@ -68,8 +87,25 @@ async function bootstrap() {
     }),
   );
 
+  if (shouldEnableSwagger()) {
+    const swaggerConfig = new DocumentBuilder()
+      .setTitle('Hopee Academy API')
+      .setDescription('API de la plataforma de inglés Hopee Academy')
+      .setVersion('1.0')
+      .addBearerAuth()
+      .addCookieAuth('hopee_admin')
+      .build();
+    const document = SwaggerModule.createDocument(app, swaggerConfig);
+    SwaggerModule.setup('api-docs', app, document);
+    logger.log('Swagger disponible en /api-docs');
+  }
+
   const port = Number(process.env.PORT) || 3003;
   await app.listen(port);
-  console.log(`🚀 Backend corriendo en: http://localhost:${port}`);
+  logger.log(`Backend corriendo en: http://localhost:${port}`);
 }
-bootstrap();
+bootstrap().catch((err: unknown) => {
+  const message = err instanceof Error ? err.message : String(err);
+  process.stderr.write(`${message}\n`);
+  process.exit(1);
+});

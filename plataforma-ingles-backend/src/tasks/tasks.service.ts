@@ -1,14 +1,6 @@
-import {
-  BadGatewayException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadGatewayException, Injectable } from '@nestjs/common';
 import { MoodleService } from '../moodle/moodle.service';
 import { MoodleModuleRaw } from '../moodle/moodle.types';
-
-interface MoodleAssignCourse {
-  assignments?: Array<{ id: number; [key: string]: unknown }>;
-}
 
 interface MoodleUploadResult {
   itemid?: number;
@@ -36,25 +28,6 @@ export class TasksService {
       fileUrl: mod.contents && mod.contents.length > 0 ? mod.contents[0].fileurl : null,
       instanceId: mod.instance,
     };
-  }
-
-  async getTask(assignId: number, userToken?: string) {
-    const data = await this.moodleService.request<{ courses?: MoodleAssignCourse[] }>(
-      'mod_assign_get_assignments',
-      { 'courseids[0]': 0 },
-      userToken,
-    );
-
-    if (!data?.courses) {
-      throw new NotFoundException('No se pudieron cargar las tareas');
-    }
-
-    for (const course of data.courses) {
-      const assign = course.assignments?.find((a) => a.id === assignId);
-      if (assign) return assign;
-    }
-
-    throw new NotFoundException(`Tarea ${assignId} no encontrada`);
   }
 
   async getSubmissionStatus(assignId: number, userToken?: string) {

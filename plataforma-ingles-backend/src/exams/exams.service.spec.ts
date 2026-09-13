@@ -1,6 +1,12 @@
-import { ForbiddenException } from '@nestjs/common';
+import { ConflictException, ForbiddenException } from '@nestjs/common';
+import { ExamAdminService } from './exam-admin.service';
+import { ExamGradebookService } from './exam-gradebook.service';
+import { ExamStudentService } from './exam-student.service';
 import { ExamsService } from './exams.service';
 import { Exam } from './entities/exam.entity';
+
+const TOKEN = 'tok';
+const USER_ID = 99;
 
 describe('ExamsService', () => {
   const examRepo = {
@@ -37,25 +43,36 @@ describe('ExamsService', () => {
   };
   const moodleService = {
     getUsersByIds: jest.fn(),
+    isEnrolledInCourse: jest.fn(),
   };
 
-  const service = new ExamsService(
-    examRepo as any,
-    attemptRepo as any,
-    dataSource as any,
-    {
-      normalizeMediaPath: (v: string | null | undefined) => {
-        const t = v?.trim() || null;
-        if (!t) return null;
-        if (t.startsWith('/exams/media/')) return t;
-        throw new Error('bad media');
-      },
-    } as any,
-    coursesService as any,
-    calendarService as any,
-    programSync as any,
-    moodleService as any,
+  const examMedia = {
+    normalizeMediaPath: (v: string | null | undefined) => {
+      const t = v?.trim() || null;
+      if (!t) return null;
+      if (t.startsWith('/exams/media/')) return t;
+      throw new Error('bad media');
+    },
+  };
+
+  const admin = new ExamAdminService(examRepo as never, examMedia as never);
+  const student = new ExamStudentService(
+    examRepo as never,
+    attemptRepo as never,
+    dataSource as never,
+    coursesService as never,
+    moodleService as never,
+    admin,
   );
+  const gradebook = new ExamGradebookService(
+    examRepo as never,
+    attemptRepo as never,
+    coursesService as never,
+    calendarService as never,
+    programSync as never,
+    moodleService as never,
+  );
+  const service = new ExamsService(admin, student, gradebook);
 
   const exam: Exam = {
     id: 1,
@@ -116,31 +133,35 @@ describe('ExamsService', () => {
     jest.clearAllMocks();
     manager.findOne.mockResolvedValue(exam);
     manager.count.mockResolvedValue(0);
+    examRepo.findOne.mockResolvedValue(exam);
+    moodleService.isEnrolledInCourse.mockResolvedValue(true);
   });
 
   it('scores MC + TF + gap_fill together', async () => {
-    const result = await service.submitAttempt(1, 99, {
-      '1': 11,
-      '2': 22,
-      '3': { '1': 'are', '2': 'is' },
-    });
+    const result = await service.submitAttempt(
+      1,
+      USER_ID,
+      { '1': 11, '2': 22, '3': { '1': 'are', '2': 'is' } },
+      TOKEN,
+    );
     expect(result.correct).toBe(3);
     expect(result.total).toBe(3);
     expect(result.score).toBe(100);
   });
 
   it('gap_fill is case-insensitive and unanswered counts as wrong', async () => {
-    const result = await service.submitAttempt(1, 99, {
-      '1': 11,
-      '3': { '1': 'ARE', '2': 'wrong' },
-    });
+    const result = await service.submitAttempt(
+      1,
+      USER_ID,
+      { '1': 11, '3': { '1': 'ARE', '2': 'wrong' } },
+      TOKEN,
+    );
     expect(result.correct).toBe(1);
     expect(result.score).toBe(33);
   });
 
   it('strips isCorrect and correctBlanks for students', async () => {
-    examRepo.findOne.mockResolvedValue(exam);
-    const view = await service.getExamForStudent(1);
+    const view = await service.getExamForStudent(1, TOKEN, USER_ID);
     expect(view.questions[0].options[0]).toEqual({ id: 11, text: 'A' });
     expect((view.questions[0].options[0] as { isCorrect?: boolean }).isCorrect).toBeUndefined();
     expect(view.questions[2].type).toBe('gap_fill');
@@ -151,9 +172,98 @@ describe('ExamsService', () => {
 
   it('blocks when max attempts reached', async () => {
     manager.count.mockResolvedValue(2);
-    await expect(service.submitAttempt(1, 99, { '1': 11 })).rejects.toBeInstanceOf(
+    await expect(service.submitAttempt(1, USER_ID, { '1': 11 }, TOKEN)).rejects.toBeInstanceOf(
       ForbiddenException,
     );
+  });
+
+  describe('course access', () => {
+    it('rejects reading an exam from a course the user is not enrolled in', async () => {
+      moodleService.isEnrolledInCourse.mockResolvedValue(false);
+      await expect(service.getExamForStudent(1, TOKEN, USER_ID)).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+      expect(moodleService.isEnrolledInCourse).toHaveBeenCalledWith(TOKEN, 10, USER_ID);
+    });
+
+    it('rejects submitting to an exam from a course the user is not enrolled in', async () => {
+      moodleService.isEnrolledInCourse.mockResolvedValue(false);
+      await expect(service.submitAttempt(1, USER_ID, { '1': 11 }, TOKEN)).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+      expect(manager.save).not.toHaveBeenCalled();
+    });
+
+    it('rejects listing exams of a course the user is not enrolled in', async () => {
+      moodleService.isEnrolledInCourse.mockResolvedValue(false);
+      await expect(service.getExamsByCourse(10, TOKEN, USER_ID)).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+      expect(examRepo.find).not.toHaveBeenCalled();
+    });
+
+    it('rejects reading own attempts for a course the user is not enrolled in', async () => {
+      moodleService.isEnrolledInCourse.mockResolvedValue(false);
+      await expect(service.getOwnAttempts(1, USER_ID, TOKEN)).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+    });
+
+    it('allows a teacher of the course, since isEnrolledInCourse covers any role', async () => {
+      moodleService.isEnrolledInCourse.mockResolvedValue(true);
+      await expect(service.getExamForStudent(1, TOKEN, 7)).resolves.toMatchObject({ id: 1 });
+    });
+
+    it('rejects submitting to an inactive exam', async () => {
+      manager.findOne.mockResolvedValue({ ...exam, active: false });
+      await expect(service.submitAttempt(1, USER_ID, { '1': 11 }, TOKEN)).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+    });
+  });
+
+  describe('concurrent attempts', () => {
+    it('maps the unique index violation to 409 instead of exceeding maxAttempts', async () => {
+      const uniqueViolation = Object.assign(new Error('duplicate key'), { code: '23505' });
+      manager.save.mockRejectedValueOnce(uniqueViolation);
+
+      await expect(service.submitAttempt(1, USER_ID, { '1': 11 }, TOKEN)).rejects.toBeInstanceOf(
+        ConflictException,
+      );
+    });
+
+    it('numbers attempts so the unique index can enforce the limit', async () => {
+      manager.count.mockResolvedValue(1);
+      await service.submitAttempt(1, USER_ID, { '1': 11 }, TOKEN);
+
+      expect(manager.create).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ examId: 1, userId: USER_ID, attemptNumber: 2 }),
+      );
+    });
+
+    it('only one of two simultaneous submits wins when maxAttempts is 1', async () => {
+      manager.findOne.mockResolvedValue({ ...exam, maxAttempts: 1 });
+      // Ambas transacciones leen 0 intentos previos; la base rechaza la segunda.
+      manager.count.mockResolvedValue(0);
+      const uniqueViolation = Object.assign(new Error('duplicate key'), { code: '23505' });
+      manager.save.mockResolvedValueOnce({}).mockRejectedValueOnce(uniqueViolation);
+
+      const results = await Promise.allSettled([
+        service.submitAttempt(1, USER_ID, { '1': 11 }, TOKEN),
+        service.submitAttempt(1, USER_ID, { '1': 11 }, TOKEN),
+      ]);
+
+      expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+      expect(results.filter((r) => r.status === 'rejected')).toHaveLength(1);
+    });
+
+    it('rethrows errors that are not unique violations', async () => {
+      manager.save.mockRejectedValueOnce(new Error('connection lost'));
+      await expect(service.submitAttempt(1, USER_ID, { '1': 11 }, TOKEN)).rejects.toThrow(
+        'connection lost',
+      );
+    });
   });
 
   it('getMyExams returns pending/passed for enrolled courses only', async () => {
@@ -190,7 +300,12 @@ describe('ExamsService', () => {
 
     const list = await service.getMyExams('tok', 99);
     expect(list).toHaveLength(2);
-    expect(list[0]).toMatchObject({ id: 1, status: 'pending', attemptsUsed: 0, courseName: 'English A1' });
+    expect(list[0]).toMatchObject({
+      id: 1,
+      status: 'pending',
+      attemptsUsed: 0,
+      courseName: 'English A1',
+    });
     expect(list[1]).toMatchObject({ id: 2, status: 'passed', attemptsUsed: 1, bestScore: 80 });
   });
 

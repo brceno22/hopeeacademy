@@ -47,8 +47,12 @@ export class InitSchema1740000000000 implements MigrationInterface {
         "createdAt" TIMESTAMP NOT NULL DEFAULT now()
       );
     `);
-    await queryRunner.query(`ALTER TABLE exams ADD COLUMN IF NOT EXISTS "maxAttempts" int NOT NULL DEFAULT 3`);
-    await queryRunner.query(`ALTER TABLE exams ADD COLUMN IF NOT EXISTS "passThreshold" int NOT NULL DEFAULT 60`);
+    await queryRunner.query(
+      `ALTER TABLE exams ADD COLUMN IF NOT EXISTS "maxAttempts" int NOT NULL DEFAULT 3`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE exams ADD COLUMN IF NOT EXISTS "passThreshold" int NOT NULL DEFAULT 60`,
+    );
 
     await queryRunner.query(`
       CREATE TABLE IF NOT EXISTS questions (

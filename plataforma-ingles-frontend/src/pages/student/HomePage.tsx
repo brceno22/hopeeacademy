@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '@/core/api/axios';
-import { useAuth } from '@/core/context/AuthContext';
+import { useAuth } from '@/core/context/auth';
 import { useMicrolearningToday } from '@/core/hooks/useMicrolearningToday';
 import './home-page.css';
 

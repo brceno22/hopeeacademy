@@ -1,18 +1,62 @@
-import { Test, TestingModule } from '@nestjs/testing';
+import type { MoodleUser } from '../auth/moodle-user.types';
 import { TasksController } from './tasks.controller';
+import { TasksService } from './tasks.service';
+
+const USER: MoodleUser = { userId: 7, token: 'user-token' };
+
+function makeHarness() {
+  const tasksService = {
+    getSubmissionStatus: jest.fn(),
+    submitTask: jest.fn(),
+  };
+
+  const controller = new TasksController(tasksService as unknown as TasksService);
+  return { controller, tasksService };
+}
 
 describe('TasksController', () => {
-  let controller: TasksController;
+  it('getSubmissionStatus forwards the session token', () => {
+    const { controller, tasksService } = makeHarness();
 
-  beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
-      controllers: [TasksController],
-    }).compile();
+    controller.getSubmissionStatus(501, USER);
 
-    controller = module.get<TasksController>(TasksController);
+    expect(tasksService.getSubmissionStatus).toHaveBeenCalledWith(501, 'user-token');
   });
 
-  it('should be defined', () => {
-    expect(controller).toBeDefined();
+  it('submitTask takes the userId from the session, never from the body', () => {
+    const { controller, tasksService } = makeHarness();
+
+    controller.submitTask(
+      501,
+      {
+        text: 'Mi ensayo',
+        fileName: 'essay.pdf',
+        fileBase64: 'BASE64',
+        fileMimeType: 'application/pdf',
+      },
+      USER,
+    );
+
+    expect(tasksService.submitTask).toHaveBeenCalledWith(501, 'user-token', {
+      userId: 7,
+      text: 'Mi ensayo',
+      fileName: 'essay.pdf',
+      fileBase64: 'BASE64',
+      fileMimeType: 'application/pdf',
+    });
+  });
+
+  it('submitTask accepts a text-only body, leaving the file fields undefined', () => {
+    const { controller, tasksService } = makeHarness();
+
+    controller.submitTask(501, { text: 'Solo texto' }, USER);
+
+    expect(tasksService.submitTask).toHaveBeenCalledWith(501, 'user-token', {
+      userId: 7,
+      text: 'Solo texto',
+      fileName: undefined,
+      fileBase64: undefined,
+      fileMimeType: undefined,
+    });
   });
 });

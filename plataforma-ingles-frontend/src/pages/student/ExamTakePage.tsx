@@ -2,14 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import api from '../../core/api/axios';
 import { AxiosError } from 'axios';
-import {
-  ExamQuestionBody,
-  isAnswered,
-} from '@/features/courses/components/ExamQuestionBody';
-import type {
-  AnswerValue,
-  ExamQuestionView,
-} from '@/features/courses/components/ExamQuestionBody';
+import { ExamQuestionBody } from '@/features/courses/components/ExamQuestionBody';
+import type { AnswerValue, ExamQuestionView } from '@/features/courses/components/ExamQuestionBody';
+import { isAnswered } from '@/features/courses/utils/examAnswers';
 
 interface Exam {
   id: number;

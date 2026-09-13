@@ -1,19 +1,8 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Param,
-  ParseIntPipe,
-  Post,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseIntPipe, Post, UseGuards } from '@nestjs/common';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { MoodleAuthGuard } from '../auth/moodle-auth.guard';
 import type { MoodleUser } from '../auth/moodle-user.types';
-import {
-  CreateDiscussionDto,
-  ReplyDiscussionDto,
-} from '../common/dto/moodle-actions.dto';
+import { CreateDiscussionDto, ReplyDiscussionDto } from '../common/dto/moodle-actions.dto';
 import { ForumsService } from './forums.service';
 
 @Controller('forums')
@@ -71,11 +60,6 @@ export class ForumsController {
     @Body() body: ReplyDiscussionDto,
     @CurrentUser() user: MoodleUser,
   ) {
-    return this.forumsService.addDiscussionPost(
-      postId,
-      body.message,
-      user.token,
-      body.subject,
-    );
+    return this.forumsService.addDiscussionPost(postId, body.message, user.token, body.subject);
   }
 }

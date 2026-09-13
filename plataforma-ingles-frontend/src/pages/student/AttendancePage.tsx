@@ -77,8 +77,14 @@ export const AttendancePage: React.FC = () => {
   const [loadingRole, setLoadingRole] = useState(true);
   const [teacherShifts, setTeacherShifts] = useState<TeacherShift[]>([]);
   const [error, setError] = useState('');
+  const [selectedShiftIdState, setSelectedShiftId] = useState<number | null>(null);
 
-  const [selectedShiftId, setSelectedShiftId] = useState<number | null>(null);
+  const fromQuery = shiftIdFromQuery ? Number(shiftIdFromQuery) : NaN;
+  const queryShiftId =
+    Number.isFinite(fromQuery) && teacherShifts.some((s) => s.id === fromQuery)
+      ? fromQuery
+      : null;
+  const selectedShiftId = queryShiftId ?? selectedShiftIdState;
   const [todaySession, setTodaySession] = useState<AttendanceSessionDto | null>(null);
   const [roster, setRoster] = useState<RosterResponse | null>(null);
   const [teacherBusy, setTeacherBusy] = useState(false);
@@ -115,14 +121,6 @@ export const AttendancePage: React.FC = () => {
     });
     return data;
   }, [shiftIdFromQuery]);
-
-  useEffect(() => {
-    const fromQuery = shiftIdFromQuery ? Number(shiftIdFromQuery) : NaN;
-    if (!Number.isFinite(fromQuery)) return;
-    if (teacherShifts.some((s) => s.id === fromQuery)) {
-      setSelectedShiftId(fromQuery);
-    }
-  }, [shiftIdFromQuery, teacherShifts]);
 
   const loadStudentHistory = useCallback(async () => {
     const { data } = await api.get<HistoryItem[]>('/attendance/me');

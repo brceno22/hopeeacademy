@@ -1,8 +1,4 @@
-import {
-  BadRequestException,
-  ForbiddenException,
-  Injectable,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { UserProgress } from './user-progress.entity';
@@ -95,9 +91,7 @@ export class ProgressService {
 
     const completedModulesCount = completedModuleIds.length;
     const percentage =
-      totalModulesCount > 0
-        ? Math.round((completedModulesCount / totalModulesCount) * 100)
-        : 0;
+      totalModulesCount > 0 ? Math.round((completedModulesCount / totalModulesCount) * 100) : 0;
 
     return {
       courseId,

@@ -138,10 +138,7 @@ export class CalendarController {
 
   @UseGuards(MoodleAuthGuard)
   @Post('teacher/events')
-  async teacherCreateEvent(
-    @CurrentUser() user: MoodleUser,
-    @Body() body: CreateCalendarEventDto,
-  ) {
+  async teacherCreateEvent(@CurrentUser() user: MoodleUser, @Body() body: CreateCalendarEventDto) {
     await this.calendarService.assertTeacherShift(user.token, body.shiftId);
     return this.calendarService.createEvent(body);
   }
@@ -163,10 +160,7 @@ export class CalendarController {
 
   @UseGuards(MoodleAuthGuard)
   @Delete('teacher/events/:id')
-  async teacherDeleteEvent(
-    @CurrentUser() user: MoodleUser,
-    @Param('id', ParseIntPipe) id: number,
-  ) {
+  async teacherDeleteEvent(@CurrentUser() user: MoodleUser, @Param('id', ParseIntPipe) id: number) {
     const existing = await this.calendarService.getEventOrFail(id);
     await this.calendarService.assertTeacherShift(user.token, existing.shiftId);
     return this.calendarService.deleteEvent(id);

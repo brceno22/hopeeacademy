@@ -1,15 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '@/core/api/axios';
-import { useAuth } from '@/core/context/AuthContext';
+import { useAuth } from '@/core/context/auth';
 import type { CourseFolderNode, MoodleCourse } from '@/core/types/courses-catalog';
 import { MoodleCourseAutocomplete } from './MoodleCourseAutocomplete';
 import './admin.css';
 
 export const AdminCourseCatalog: React.FC = () => {
   const navigate = useNavigate();
-  const { adminKey } = useAuth();
-  const headers = { 'x-admin-key': adminKey || '' };
+  const { isAdmin } = useAuth();
 
   const [tree, setTree] = useState<CourseFolderNode[]>([]);
   const [moodleCourses, setMoodleCourses] = useState<MoodleCourse[]>([]);
@@ -28,12 +27,11 @@ export const AdminCourseCatalog: React.FC = () => {
   const [deleteTarget, setDeleteTarget] = useState<CourseFolderNode | null>(null);
 
   const load = async () => {
-    setLoading(true);
     setError('');
     try {
       const [treeRes, coursesRes] = await Promise.all([
-        api.get('/courses/admin/tree', { headers }),
-        api.get('/courses/admin/moodle-courses', { headers }),
+        api.get('/courses/admin/tree'),
+        api.get('/courses/admin/moodle-courses'),
       ]);
       setTree(treeRes.data);
       setMoodleCourses(coursesRes.data);
@@ -45,9 +43,31 @@ export const AdminCourseCatalog: React.FC = () => {
   };
 
   useEffect(() => {
-    if (!adminKey) navigate('/admin');
-    else void load();
-  }, [adminKey, navigate]);
+    if (!isAdmin) {
+      navigate('/admin');
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const [treeRes, coursesRes] = await Promise.all([
+          api.get('/courses/admin/tree'),
+          api.get('/courses/admin/moodle-courses'),
+        ]);
+        if (cancelled) return;
+        setTree(treeRes.data);
+        setMoodleCourses(coursesRes.data);
+        setError('');
+      } catch {
+        if (!cancelled) setError('Failed to load catalog');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isAdmin, navigate]);
 
   const flatFolders = (
     nodes: CourseFolderNode[],
@@ -65,14 +85,10 @@ export const AdminCourseCatalog: React.FC = () => {
 
   const createFolder = async () => {
     try {
-      await api.post(
-        '/courses/admin/folders',
-        {
-          name: newFolderName,
-          parentId: parentFolderId ? parseInt(parentFolderId, 10) : null,
-        },
-        { headers },
-      );
+      await api.post('/courses/admin/folders', {
+        name: newFolderName,
+        parentId: parentFolderId ? parseInt(parentFolderId, 10) : null,
+      });
       setNewFolderName('');
       setSuccess('Folder created');
       await load();
@@ -84,11 +100,10 @@ export const AdminCourseCatalog: React.FC = () => {
   const saveEdit = async () => {
     if (!editing) return;
     try {
-      await api.patch(
-        `/courses/admin/folders/${editing.id}`,
-        { name: editName, sortOrder: editSort },
-        { headers },
-      );
+      await api.patch(`/courses/admin/folders/${editing.id}`, {
+        name: editName,
+        sortOrder: editSort,
+      });
       setEditing(null);
       setSuccess('Folder updated');
       await load();
@@ -100,7 +115,7 @@ export const AdminCourseCatalog: React.FC = () => {
   const confirmDelete = async () => {
     if (!deleteTarget) return;
     try {
-      const res = await api.delete(`/courses/admin/folders/${deleteTarget.id}`, { headers });
+      const res = await api.delete(`/courses/admin/folders/${deleteTarget.id}`);
       setSuccess(res.data.message);
       setDeleteTarget(null);
       await load();
@@ -117,11 +132,7 @@ export const AdminCourseCatalog: React.FC = () => {
       return;
     }
     try {
-      await api.post(
-        `/courses/admin/folders/${folderId}/courses`,
-        { moodleCourseId },
-        { headers },
-      );
+      await api.post(`/courses/admin/folders/${folderId}/courses`, { moodleCourseId });
       setSuccess('Course assigned to folder');
       setAssignCourseId('');
       await load();
@@ -133,7 +144,7 @@ export const AdminCourseCatalog: React.FC = () => {
   const unassign = async (linkId: number) => {
     if (!confirm('Remove this course from the folder? (it will not be deleted in Moodle)')) return;
     try {
-      await api.delete(`/courses/admin/links/${linkId}`, { headers });
+      await api.delete(`/courses/admin/links/${linkId}`);
       setSuccess('Link removed');
       await load();
     } catch {
@@ -142,7 +153,7 @@ export const AdminCourseCatalog: React.FC = () => {
   };
 
   const seed = async () => {
-    const res = await api.post('/courses/admin/seed-folders', {}, { headers });
+    const res = await api.post('/courses/admin/seed-folders', {});
     setSuccess(res.data.message);
     await load();
   };

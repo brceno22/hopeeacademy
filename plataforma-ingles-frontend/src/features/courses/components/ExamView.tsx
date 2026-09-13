@@ -3,14 +3,9 @@ import React, { useState } from 'react';
 import { AxiosError } from 'axios';
 import api from '@/core/api/axios';
 import { sanitizeHtml } from '@/core/utils/sanitize';
-import {
-  ExamQuestionBody,
-  isAnswered,
-} from '@/features/courses/components/ExamQuestionBody';
-import type {
-  AnswerValue,
-  ExamQuestionView,
-} from '@/features/courses/components/ExamQuestionBody';
+import { ExamQuestionBody } from '@/features/courses/components/ExamQuestionBody';
+import type { AnswerValue, ExamQuestionView } from '@/features/courses/components/ExamQuestionBody';
+import { isAnswered } from '@/features/courses/utils/examAnswers';
 import '../styles/course-view.css';
 
 interface ExamSummary {

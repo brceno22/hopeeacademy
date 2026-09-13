@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import api from '@/core/api/axios';
-import { useAuth } from '@/core/context/AuthContext';
+import { useAuth } from '@/core/context/auth';
 import { useMicrolearningToday } from '@/core/hooks/useMicrolearningToday';
-import { buildFileProxyUrl } from '@/core/utils/fileProxy';
-import { StudentLayoutProvider, useStudentLayout } from './StudentLayoutContext';
+import { useFileProxyUrl } from '@/core/hooks/useFileProxyUrl';
+import { StudentLayoutProvider } from './StudentLayoutContext';
+import { useStudentLayout } from './useStudentLayout';
 import './student-layout.css';
 
 const NAV_ITEMS = [
@@ -26,9 +27,10 @@ function LayoutInner() {
   const { user, logoutStudent, isAdmin, updateStudentProfile } = useAuth();
   const { data: microData } = useMicrolearningToday();
   const streak = microData?.currentStreak ?? 0;
-  /** Moodle teacher role only; don’t use isAdmin (adminKey can linger from another session). */
+  /** Moodle teacher role only; distinct from isAdmin, which is the admin panel session. */
   const [isTeacher, setIsTeacher] = useState(false);
-  const [headerAvatar, setHeaderAvatar] = useState<string | null>(user?.avatarUrl || null);
+  const [fetchedAvatar, setFetchedAvatar] = useState<string | null | undefined>(undefined);
+  const [avatarSource, setAvatarSource] = useState(user?.avatarUrl ?? null);
   const [avatarBroken, setAvatarBroken] = useState(false);
   const {
     sidebarCollapsed,
@@ -61,10 +63,13 @@ function LayoutInner() {
     };
   }, [user?.token]);
 
-  useEffect(() => {
-    setHeaderAvatar(user?.avatarUrl || null);
+  const currentAvatar = user?.avatarUrl ?? null;
+  if (currentAvatar !== avatarSource) {
+    setAvatarSource(currentAvatar);
+    setFetchedAvatar(undefined);
     setAvatarBroken(false);
-  }, [user?.avatarUrl]);
+  }
+  const headerAvatar = fetchedAvatar !== undefined ? fetchedAvatar : currentAvatar;
 
   useEffect(() => {
     if (!user?.token) return;
@@ -77,7 +82,7 @@ function LayoutInner() {
           avatarColor?: string;
         }>('/users/me');
         if (cancelled) return;
-        setHeaderAvatar(data.avatar || null);
+        setFetchedAvatar(data.avatar || null);
         setAvatarBroken(false);
         updateStudentProfile({
           avatarUrl: data.avatar || null,
@@ -105,10 +110,8 @@ function LayoutInner() {
   };
 
   const fullName = user?.fullName || 'Student';
-  const avatarSrc =
-    headerAvatar && user?.token && !avatarBroken
-      ? buildFileProxyUrl(headerAvatar, user.token)
-      : null;
+  const { url: proxiedAvatar } = useFileProxyUrl(headerAvatar);
+  const avatarSrc = avatarBroken ? null : proxiedAvatar;
 
   return (
     <div className={`student-shell ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>

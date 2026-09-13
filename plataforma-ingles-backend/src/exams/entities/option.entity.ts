@@ -12,6 +12,6 @@ export class Option {
   @Column({ default: false })
   isCorrect!: boolean;
 
-  @ManyToOne(() => Question, q => q.options, { onDelete: 'CASCADE' })
+  @ManyToOne(() => Question, (q) => q.options, { onDelete: 'CASCADE' })
   question!: Question;
 }

@@ -1,0 +1,100 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  backend:
+    name: backend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: plataforma-ingles-backend
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: plataforma_ingles
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d plataforma_ingles"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DB_HOST: localhost
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASS: postgres
+      DB_NAME: plataforma_ingles
+      DB_SYNC: 'false'
+      ADMIN_SECRET: ci-admin-secret-32-characters-min
+      ADMIN_SESSION_SECRET: ci-session-secret-at-least-32-chars-xx
+      MOODLE_URL: http://moodle.test/webservice/rest/server.php
+      NODE_ENV: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: plataforma-ingles-backend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+      - run: npm test
+      - run: npm run migration:run
+      - run: npm run test:e2e
+
+  frontend:
+    name: frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: plataforma-ingles-frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: plataforma-ingles-frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run test:run
+      - run: npm run build
+
+  audit:
+    name: audit
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: |
+            plataforma-ingles-backend/package-lock.json
+            plataforma-ingles-frontend/package-lock.json
+      - name: Backend audit
+        working-directory: plataforma-ingles-backend
+        run: npm ci && npm run audit
+      - name: Frontend audit
+        working-directory: plataforma-ingles-frontend
+        run: npm ci && npm run audit
+
+  docker:
+    name: docker
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build backend image
+        run: docker build -t hopee-backend ./plataforma-ingles-backend
+      - name: Build frontend image
+        run: docker build -t hopee-frontend ./plataforma-ingles-frontend

@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { API_BASE_URL } from '@/core/api/axios';
+import { blankKeys } from '@/features/courses/utils/examAnswers';
 
 export type QuestionType = 'multiple_choice' | 'true_false' | 'gap_fill';
 
@@ -28,12 +29,6 @@ function resolveMediaSrc(path: string | null | undefined): string | null {
 }
 
 const BLANK_RE = /\{\{(\d+)\}\}/g;
-
-function blankKeys(text: string): string[] {
-  const keys = new Set<string>();
-  for (const m of text.matchAll(BLANK_RE)) keys.add(m[1]);
-  return [...keys].sort((a, b) => Number(a) - Number(b));
-}
 
 function renderPromptWithBlanks(
   text: string,
@@ -233,14 +228,3 @@ export const ExamQuestionBody: React.FC<Props> = ({
     </div>
   );
 };
-
-export function isAnswered(value: AnswerValue | undefined, question: ExamQuestionView): boolean {
-  if (value === undefined || value === null) return false;
-  const type = question.type || 'multiple_choice';
-  if (type === 'gap_fill') {
-    if (typeof value !== 'object' || Array.isArray(value)) return false;
-    const keys = blankKeys(question.text);
-    return keys.length > 0 && keys.every((k) => Boolean((value as Record<string, string>)[k]));
-  }
-  return typeof value === 'number' && Number.isFinite(value);
-}

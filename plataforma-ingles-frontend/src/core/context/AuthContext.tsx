@@ -1,45 +1,18 @@
-import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import api, { clearStudentStorage } from '@/core/api/axios';
+import {
+  DEFAULT_AVATAR_COLOR,
+  authContext,
+  type AdminStatus,
+  type AuthContextValue,
+  type AuthUser,
+} from './auth';
 
 const TOKEN_KEY = 'token';
 const USER_ID_KEY = 'moodleUserId';
 const FULL_NAME_KEY = 'fullName';
 const AVATAR_KEY = 'avatarUrl';
 const AVATAR_COLOR_KEY = 'avatarColor';
-const ADMIN_KEY = 'adminKey';
-
-export const DEFAULT_AVATAR_COLOR = '#0071BC';
-
-export interface AuthUser {
-  token: string;
-  userId: string | null;
-  fullName: string;
-  avatarUrl: string | null;
-  avatarColor: string;
-}
-
-interface AuthContextValue {
-  user: AuthUser | null;
-  isAuthenticated: boolean;
-  adminKey: string | null;
-  isAdmin: boolean;
-  loginStudent: (payload: {
-    token: string;
-    userId?: number | string | null;
-    fullName?: string;
-    avatarUrl?: string | null;
-    avatarColor?: string | null;
-  }) => void;
-  updateStudentProfile: (patch: {
-    fullName?: string;
-    avatarUrl?: string | null;
-    avatarColor?: string | null;
-  }) => void;
-  logoutStudent: () => void;
-  loginAdmin: (key: string) => void;
-  logoutAdmin: () => void;
-}
-
-const AuthContext = createContext<AuthContextValue | null>(null);
 
 function readStudent(): AuthUser | null {
   const token = localStorage.getItem(TOKEN_KEY);
@@ -55,9 +28,26 @@ function readStudent(): AuthUser | null {
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<AuthUser | null>(() => readStudent());
-  const [adminKey, setAdminKey] = useState<string | null>(
-    () => localStorage.getItem(ADMIN_KEY),
-  );
+  const [adminStatus, setAdminStatus] = useState<AdminStatus>('unknown');
+
+  // La sesión de admin vive en una cookie HttpOnly, así que el estado sólo
+  // puede venir del backend.
+  useEffect(() => {
+    let cancelled = false;
+
+    api
+      .get('/auth/admin/session')
+      .then(() => {
+        if (!cancelled) setAdminStatus('authenticated');
+      })
+      .catch(() => {
+        if (!cancelled) setAdminStatus('anonymous');
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const loginStudent = useCallback(
     (payload: {
@@ -81,8 +71,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       const color = payload.avatarColor || DEFAULT_AVATAR_COLOR;
       localStorage.setItem(AVATAR_COLOR_KEY, color);
-      localStorage.removeItem(ADMIN_KEY);
-      setAdminKey(null);
       setUser({
         token: payload.token,
         userId: payload.userId != null ? String(payload.userId) : null,
@@ -123,30 +111,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   );
 
   const logoutStudent = useCallback(() => {
-    localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem(USER_ID_KEY);
-    localStorage.removeItem(FULL_NAME_KEY);
-    localStorage.removeItem(AVATAR_KEY);
-    localStorage.removeItem(AVATAR_COLOR_KEY);
+    clearStudentStorage();
     setUser(null);
   }, []);
 
-  const loginAdmin = useCallback((key: string) => {
-    localStorage.setItem(ADMIN_KEY, key);
-    setAdminKey(key);
+  const loginAdmin = useCallback(async (key: string) => {
+    await api.post('/auth/admin/session', { key });
+    setAdminStatus('authenticated');
   }, []);
 
-  const logoutAdmin = useCallback(() => {
-    localStorage.removeItem(ADMIN_KEY);
-    setAdminKey(null);
+  const logoutAdmin = useCallback(async () => {
+    try {
+      await api.delete('/auth/admin/session');
+    } catch {
+      // Si el backend no responde no hay nada que reintentar: la cookie expira
+      // sola y localmente ya dejamos de ser admin. No rechazar permite llamar
+      // a logoutAdmin sin await desde un onClick.
+    } finally {
+      setAdminStatus('anonymous');
+    }
   }, []);
 
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
       isAuthenticated: Boolean(user?.token),
-      adminKey,
-      isAdmin: Boolean(adminKey),
+      adminStatus,
+      isAdmin: adminStatus === 'authenticated',
       loginStudent,
       updateStudentProfile,
       logoutStudent,
@@ -155,7 +146,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }),
     [
       user,
-      adminKey,
+      adminStatus,
       loginStudent,
       updateStudentProfile,
       logoutStudent,
@@ -164,13 +155,5 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     ],
   );
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return <authContext.Provider value={value}>{children}</authContext.Provider>;
 };
-
-export function useAuth(): AuthContextValue {
-  const ctx = useContext(AuthContext);
-  if (!ctx) {
-    throw new Error('useAuth must be used within AuthProvider');
-  }
-  return ctx;
-}

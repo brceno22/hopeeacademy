@@ -1,23 +1,9 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import api, { API_BASE_URL } from '@/core/api/axios';
+import React, { useMemo, useState } from 'react';
+import { API_BASE_URL } from '@/core/api/axios';
+import { useCalendarMe, type CalendarOccurrence } from '@/core/hooks/useCalendarMe';
 import { EmptyState } from '@/core/ui/EmptyState';
 import '@/core/ui/ui.css';
 import './calendar-page.css';
-
-interface Occurrence {
-  id: string;
-  source: 'shift' | 'event';
-  sourceId: number;
-  title: string;
-  description: string | null;
-  startsAt: string;
-  endsAt: string;
-  meetUrl: string | null;
-  shiftId: number;
-  shiftName: string;
-  folderName: string | null;
-  googleUrl?: string;
-}
 
 function monthBounds(year: number, month: number) {
   const from = `${year}-${String(month + 1).padStart(2, '0')}-01`;
@@ -39,31 +25,13 @@ export const CalendarPage: React.FC = () => {
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth());
   const [selectedDay, setSelectedDay] = useState(ymdLocal(now));
-  const [occurrences, setOccurrences] = useState<Occurrence[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-
+  const [icsError, setIcsError] = useState('');
   const { from, to } = useMemo(() => monthBounds(year, month), [year, month]);
-
-  const loadMonth = useCallback(async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const { data } = await api.get<Occurrence[]>('/calendar/me', { params: { from, to } });
-      setOccurrences(data);
-    } catch {
-      setError('Could not load the calendar');
-    } finally {
-      setLoading(false);
-    }
-  }, [from, to]);
-
-  useEffect(() => {
-    void loadMonth();
-  }, [loadMonth]);
+  const { data: occurrences = [], isPending: loading, isError } = useCalendarMe(from, to);
+  const error = isError ? 'Could not load the calendar' : icsError;
 
   const byDay = useMemo(() => {
-    const map = new Map<string, Occurrence[]>();
+    const map = new Map<string, CalendarOccurrence[]>();
     for (const o of occurrences) {
       const day = ymdLocal(new Date(o.startsAt));
       if (!map.has(day)) map.set(day, []);
@@ -114,7 +82,7 @@ export const CalendarPage: React.FC = () => {
         a.click();
         URL.revokeObjectURL(a.href);
       } catch {
-        setError('Could not download the .ics file');
+        setIcsError('Could not download the .ics file');
       }
     })();
   };

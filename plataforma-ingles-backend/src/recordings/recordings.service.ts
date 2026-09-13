@@ -1,8 +1,4 @@
-import {
-  BadRequestException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CourseFolder } from '../courses/entities/course-folder.entity';
@@ -139,7 +135,12 @@ export class RecordingsService {
 
     const byFolder = new Map<
       number,
-      { folderId: number; folderName: string; parentId: number | null; recordings: ReturnType<RecordingsService['serialize']>[] }
+      {
+        folderId: number;
+        folderName: string;
+        parentId: number | null;
+        recordings: ReturnType<RecordingsService['serialize']>[];
+      }
     >();
 
     for (const r of rows) {

@@ -170,7 +170,7 @@ export class AuthService {
         this.logger.log(`Email "${input}" resuelto a username "${data[0].username}"`);
         return data[0].username;
       }
-    } catch (error: unknown) {
+    } catch {
       this.logger.warn(`No se pudo resolver email "${input}" a username`);
     }
 

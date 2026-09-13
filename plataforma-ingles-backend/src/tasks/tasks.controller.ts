@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Param, ParseIntPipe, Post, UseGuards } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { MoodleAuthGuard } from '../auth/moodle-auth.guard';
 import type { MoodleUser } from '../auth/moodle-user.types';
@@ -10,11 +11,6 @@ import { TasksService } from './tasks.service';
 export class TasksController {
   constructor(private readonly tasksService: TasksService) {}
 
-  @Get(':assignId')
-  getTask(@Param('assignId', ParseIntPipe) assignId: number, @CurrentUser() user: MoodleUser) {
-    return this.tasksService.getTask(assignId, user.token);
-  }
-
   @Get(':assignId/status')
   getSubmissionStatus(
     @Param('assignId', ParseIntPipe) assignId: number,
@@ -23,6 +19,7 @@ export class TasksController {
     return this.tasksService.getSubmissionStatus(assignId, user.token);
   }
 
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Post(':assignId/submit')
   submitTask(
     @Param('assignId', ParseIntPipe) assignId: number,

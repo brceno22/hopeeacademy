@@ -23,19 +23,27 @@ interface ForumViewProps {
 export const ForumView: React.FC<ForumViewProps> = ({ forumId, courseId }) => {
   const [discussions, setDiscussions] = useState<Discussion[]>([]);
   const [resolvedForumId, setResolvedForumId] = useState<number | null>(forumId ?? null);
-  const [loading, setLoading] = useState(true);
+  const [loadedKey, setLoadedKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selectedDiscussionId, setSelectedDiscussionId] = useState<number | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [newSubject, setNewSubject] = useState('');
   const [newMessage, setNewMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formError, setFormError] = useState('');
+
+  const forumKey = forumId != null ? String(forumId) : `course:${courseId ?? 'auto'}`;
+  if (loadedKey !== null && loadedKey !== forumKey) {
+    setLoadedKey(null);
+    setSelectedDiscussionId(null);
+    setShowForm(false);
+    setResolvedForumId(forumId ?? null);
+  }
 
   const activeForumId = forumId ?? resolvedForumId;
 
   const fetchDiscussions = async () => {
     try {
-      setLoading(true);
       const url = forumId ? `/forums/${forumId}/discussions` : `/forums/general-discussions/auto`;
       const response = await api.get(url);
       const data = response.data;
@@ -63,22 +71,58 @@ export const ForumView: React.FC<ForumViewProps> = ({ forumId, courseId }) => {
     } catch {
       setError('Could not load forum topics.');
     } finally {
-      setLoading(false);
+      setLoadedKey(forumKey);
     }
   };
 
   useEffect(() => {
-    setResolvedForumId(forumId ?? null);
-    void fetchDiscussions();
-    setSelectedDiscussionId(null);
-    setShowForm(false);
-  }, [forumId, courseId]);
+    let cancelled = false;
+    void (async () => {
+      try {
+        const url = forumId ? `/forums/${forumId}/discussions` : `/forums/general-discussions/auto`;
+        const response = await api.get(url);
+        if (cancelled) return;
+        const data = response.data;
+
+        if (forumId) {
+          setResolvedForumId(forumId);
+          if (Array.isArray(data)) {
+            setDiscussions(data);
+          } else if (Array.isArray(data?.discussions)) {
+            setDiscussions(data.discussions);
+          } else {
+            setDiscussions([]);
+          }
+        } else if (data?.forumId) {
+          setResolvedForumId(Number(data.forumId));
+          setDiscussions(Array.isArray(data.discussions) ? data.discussions : []);
+        } else if (Array.isArray(data?.discussions)) {
+          setDiscussions(data.discussions);
+        } else if (Array.isArray(data)) {
+          setDiscussions(data);
+        } else {
+          setDiscussions([]);
+        }
+        setError(null);
+      } catch {
+        if (!cancelled) setError('Could not load forum topics.');
+      } finally {
+        if (!cancelled) setLoadedKey(forumKey);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [forumId, courseId, forumKey]);
+
+  const loading = loadedKey !== forumKey;
 
   const handleCreateTopic = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeForumId || !newSubject.trim() || !newMessage.trim()) return;
     try {
       setIsSubmitting(true);
+      setFormError('');
       await api.post(`/forums/${activeForumId}/discussions`, {
         subject: newSubject,
         message: newMessage,
@@ -92,7 +136,7 @@ export const ForumView: React.FC<ForumViewProps> = ({ forumId, courseId }) => {
         (err as { response?: { data?: { message?: string | string[] } } })?.response?.data
           ?.message || 'Failed to create the topic.';
       const msg = Array.isArray(raw) ? raw.join(', ') : String(raw);
-      alert(msg);
+      setFormError(msg);
     } finally {
       setIsSubmitting(false);
     }
@@ -148,6 +192,21 @@ export const ForumView: React.FC<ForumViewProps> = ({ forumId, courseId }) => {
 
       {showForm && activeForumId && (
         <form onSubmit={handleCreateTopic} className="widget-card">
+          {formError && (
+            <div
+              style={{
+                background: '#fef2f2',
+                border: '1px solid #fecaca',
+                color: '#ef4444',
+                padding: '16px',
+                borderRadius: '12px',
+                marginBottom: '24px',
+                fontWeight: '600',
+              }}
+            >
+              {formError}
+            </div>
+          )}
           <input
             type="text"
             className="forum-input-box"

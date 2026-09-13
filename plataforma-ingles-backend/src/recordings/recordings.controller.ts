@@ -11,9 +11,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AdminGuard } from '../auth/admin.guard';
-import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { MoodleAuthGuard } from '../auth/moodle-auth.guard';
-import type { MoodleUser } from '../auth/moodle-user.types';
 import { CreateRecordingDto, UpdateRecordingDto } from './dto/recording.dto';
 import { RecordingsService } from './recordings.service';
 
@@ -38,10 +36,7 @@ export class RecordingsController {
 
   @UseGuards(AdminGuard)
   @Patch('admin/:id')
-  async adminUpdate(
-    @Param('id', ParseIntPipe) id: number,
-    @Body() body: UpdateRecordingDto,
-  ) {
+  async adminUpdate(@Param('id', ParseIntPipe) id: number, @Body() body: UpdateRecordingDto) {
     return this.recordingsService.adminUpdate(id, body);
   }
 
@@ -55,25 +50,19 @@ export class RecordingsController {
 
   @UseGuards(MoodleAuthGuard)
   @Get()
-  async listGrouped(@CurrentUser() _user: MoodleUser) {
+  async listGrouped() {
     return this.recordingsService.listGroupedForStudents();
   }
 
   @UseGuards(MoodleAuthGuard)
   @Get('folder/:folderId')
-  async listByFolder(
-    @CurrentUser() _user: MoodleUser,
-    @Param('folderId', ParseIntPipe) folderId: number,
-  ) {
+  async listByFolder(@Param('folderId', ParseIntPipe) folderId: number) {
     return this.recordingsService.listByFolder(folderId);
   }
 
   @UseGuards(MoodleAuthGuard)
   @Get(':id')
-  async getOne(
-    @CurrentUser() _user: MoodleUser,
-    @Param('id', ParseIntPipe) id: number,
-  ) {
+  async getOne(@Param('id', ParseIntPipe) id: number) {
     return this.recordingsService.getOneForStudent(id);
   }
 }

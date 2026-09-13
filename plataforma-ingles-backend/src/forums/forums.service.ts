@@ -1,4 +1,10 @@
-import { ForbiddenException, HttpException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  HttpException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { MoodleService } from '../moodle/moodle.service';
 
 interface MoodleForum {
@@ -25,7 +31,11 @@ export class ForumsService {
 
   async getForumsByCourse(courseId: number, token: string) {
     const params = { 'courseids[0]': courseId };
-    const response = await this.moodleService.request('mod_forum_get_forums_by_courses', params, token);
+    const response = await this.moodleService.request(
+      'mod_forum_get_forums_by_courses',
+      params,
+      token,
+    );
     return response || [];
   }
 
@@ -136,7 +146,11 @@ export class ForumsService {
     return { forumId: forumIdOrCmid, forum: null };
   }
 
-  private async listUserGroupIds(courseId: number, userId: number, token: string): Promise<number[]> {
+  private async listUserGroupIds(
+    courseId: number,
+    userId: number,
+    token: string,
+  ): Promise<number[]> {
     try {
       const groupsPayload = await this.moodleService.request<
         { groups?: MoodleGroup[] } | MoodleGroup[]
@@ -261,12 +275,7 @@ export class ForumsService {
     );
   }
 
-  async addDiscussionPost(
-    postId: number,
-    message: string,
-    token: string,
-    subject?: string,
-  ) {
+  async addDiscussionPost(postId: number, message: string, token: string, subject?: string) {
     const subjectText = (subject?.trim() || 'Re:').slice(0, 255);
     return this.moodleService.requestPostForm(
       'mod_forum_add_discussion_post',

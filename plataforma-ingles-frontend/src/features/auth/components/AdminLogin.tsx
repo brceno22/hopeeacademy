@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import api from '@/core/api/axios';
-import { useAuth } from '@/core/context/AuthContext';
+import { useAuth } from '@/core/context/auth';
 import '@/pages/admin/admin.css';
 
 export const AdminLogin: React.FC = () => {
@@ -21,10 +20,7 @@ export const AdminLogin: React.FC = () => {
     setLoading(true);
 
     try {
-      await api.get('/courses/admin/moodle-courses', {
-        headers: { 'x-admin-key': key },
-      });
-      loginAdmin(key);
+      await loginAdmin(key);
       navigate('/admin/inicio');
     } catch {
       setError('Incorrect key or server unavailable');

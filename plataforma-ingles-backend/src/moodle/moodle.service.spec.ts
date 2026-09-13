@@ -2,10 +2,14 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { HttpService } from '@nestjs/axios';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { MoodleClientService } from './moodle-client.service';
+import { MoodleEnrolmentService } from './moodle-enrolment.service';
 import { MoodleService } from './moodle.service';
+import { MoodleUsersService } from './moodle-users.service';
 
 describe('MoodleService', () => {
   let service: MoodleService;
+  let client: MoodleClientService;
   let cacheStore: Map<string, unknown>;
 
   beforeEach(async () => {
@@ -13,6 +17,9 @@ describe('MoodleService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         MoodleService,
+        MoodleClientService,
+        MoodleUsersService,
+        MoodleEnrolmentService,
         { provide: HttpService, useValue: {} },
         {
           provide: ConfigService,
@@ -31,6 +38,7 @@ describe('MoodleService', () => {
     }).compile();
 
     service = module.get<MoodleService>(MoodleService);
+    client = module.get<MoodleClientService>(MoodleClientService);
   });
 
   it('should be defined', () => {
@@ -42,8 +50,8 @@ describe('MoodleService', () => {
       await expect(service.searchUsers('a')).resolves.toEqual([]);
     });
 
-    it('loads directory once then filters locally for partial names', async () => {
-      const request = jest.spyOn(service, 'request').mockResolvedValue({
+    it('queries Moodle per search and caches that query', async () => {
+      const request = jest.spyOn(client, 'request').mockResolvedValue({
         users: [
           {
             id: 10,
@@ -66,13 +74,18 @@ describe('MoodleService', () => {
       const go = await service.searchUsers('go', 25);
       expect(go).toHaveLength(1);
       expect(go[0].fullname).toMatch(/Gonzalo/i);
-      expect(request).toHaveBeenCalledTimes(1);
+      const afterGo = request.mock.calls.length;
+      expect(afterGo).toBeGreaterThan(0);
 
       const ana = await service.searchUsers('ana', 25);
       expect(ana).toHaveLength(1);
       expect(ana[0].username).toBe('ana');
-      // Second search hits cache — no new Moodle call
-      expect(request).toHaveBeenCalledTimes(1);
+      expect(request.mock.calls.length).toBeGreaterThan(afterGo);
+      const afterAna = request.mock.calls.length;
+
+      const goAgain = await service.searchUsers('go', 25);
+      expect(goAgain).toHaveLength(1);
+      expect(request.mock.calls.length).toBe(afterAna);
     });
   });
 });

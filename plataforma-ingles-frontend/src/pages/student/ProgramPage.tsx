@@ -12,7 +12,7 @@ import {
 } from '@/core/utils/format';
 import { findProgramRoot } from '@/features/courses/utils/courseTree';
 import '@/features/courses/styles/program-courses.css';
-import { useStudentLayout } from '@/layouts/StudentLayoutContext';
+import { useStudentLayout } from '@/layouts/useStudentLayout';
 
 interface ProgressDetail {
   courseId: number;

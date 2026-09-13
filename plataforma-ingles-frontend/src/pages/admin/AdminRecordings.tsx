@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '@/core/api/axios';
-import { useAuth } from '@/core/context/AuthContext';
+import { useAuth } from '@/core/context/auth';
 import type { CourseFolderNode } from '@/core/types/courses-catalog';
 import './admin.css';
 
@@ -29,8 +29,7 @@ function flatFolders(
 
 export const AdminRecordings: React.FC = () => {
   const navigate = useNavigate();
-  const { adminKey } = useAuth();
-  const headers = { 'x-admin-key': adminKey || '' };
+  const { isAdmin } = useAuth();
 
   const [folders, setFolders] = useState<CourseFolderNode[]>([]);
   const [recordings, setRecordings] = useState<RecordingRow[]>([]);
@@ -53,29 +52,37 @@ export const AdminRecordings: React.FC = () => {
 
   const loadRecordings = async (folderId?: string) => {
     const qs = folderId ? `?folderId=${folderId}` : '';
-    const res = await api.get(`/recordings/admin${qs}`, { headers });
+    const res = await api.get(`/recordings/admin${qs}`);
     setRecordings(res.data);
   };
 
-  const load = async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const treeRes = await api.get('/courses/admin/tree', { headers });
-      setFolders(treeRes.data);
-      await loadRecordings(recFolderId || undefined);
-    } catch {
-      setError('Failed to load recordings');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    if (!adminKey) navigate('/admin');
-    else void load();
+    if (!isAdmin) {
+      navigate('/admin');
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const treeRes = await api.get('/courses/admin/tree');
+        if (cancelled) return;
+        setFolders(treeRes.data);
+        const qs = recFolderId ? `?folderId=${recFolderId}` : '';
+        const recRes = await api.get(`/recordings/admin${qs}`);
+        if (cancelled) return;
+        setRecordings(recRes.data);
+        setError('');
+      } catch {
+        if (!cancelled) setError('Failed to load recordings');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [adminKey]);
+  }, [isAdmin, navigate]);
 
   const createRecording = async () => {
     const folderId = parseInt(recFolderId, 10);
@@ -84,16 +91,12 @@ export const AdminRecordings: React.FC = () => {
       return;
     }
     try {
-      await api.post(
-        '/recordings/admin',
-        {
-          folderId,
-          title: recTitle.trim(),
-          driveUrl: recUrl.trim(),
-          recordedAt: recDate || undefined,
-        },
-        { headers },
-      );
+      await api.post('/recordings/admin', {
+        folderId,
+        title: recTitle.trim(),
+        driveUrl: recUrl.trim(),
+        recordedAt: recDate || undefined,
+      });
       setRecTitle('');
       setRecUrl('');
       setRecDate('');
@@ -107,16 +110,12 @@ export const AdminRecordings: React.FC = () => {
   const saveRecordingEdit = async () => {
     if (!editingRec) return;
     try {
-      await api.patch(
-        `/recordings/admin/${editingRec.id}`,
-        {
-          title: editingRec.title,
-          driveUrl: editingRec.driveUrl,
-          recordedAt: editingRec.recordedAt || null,
-          isActive: editingRec.isActive,
-        },
-        { headers },
-      );
+      await api.patch(`/recordings/admin/${editingRec.id}`, {
+        title: editingRec.title,
+        driveUrl: editingRec.driveUrl,
+        recordedAt: editingRec.recordedAt || null,
+        isActive: editingRec.isActive,
+      });
       setEditingRec(null);
       setSuccess('Recording updated');
       await loadRecordings(recFolderId || undefined);
@@ -128,7 +127,7 @@ export const AdminRecordings: React.FC = () => {
   const deleteRecording = async (id: number) => {
     if (!confirm('Delete this recording?')) return;
     try {
-      await api.delete(`/recordings/admin/${id}`, { headers });
+      await api.delete(`/recordings/admin/${id}`);
       setSuccess('Recording deleted');
       await loadRecordings(recFolderId || undefined);
     } catch {

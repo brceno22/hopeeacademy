@@ -10,11 +10,7 @@ import { UserStreak } from './user-streak.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([
-      MicrolearningContent,
-      UserMicrolearningHistory,
-      UserStreak,
-    ]),
+    TypeOrmModule.forFeature([MicrolearningContent, UserMicrolearningHistory, UserStreak]),
     MoodleModule,
     AuthModule,
   ],
